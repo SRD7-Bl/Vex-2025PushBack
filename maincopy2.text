@@ -1,0 +1,1674 @@
+#include "field_map.hpp"
+
+// controller
+pros::Controller controller(pros::E_CONTROLLER_MASTER);
+// motor groups
+pros::MotorGroup leftMotors({-3, -6, -10}, pros::MotorGearset::blue); // left motor group - ports -3，-2，-6
+pros::MotorGroup rightMotors({14, 15, 16}, pros::MotorGearset::blue); // right motor group - ports 14,15,16
+pros::Motor intake_motor(19,pros::MotorGearset::blue); //intake motor
+pros::Motor outfeed_motor(8,pros::MotorGearset::blue); //outfeed motor
+pros::Distance intake_distance_sensor(9); //distance sensor
+pros::Distance outfeed_distance_sensor(1);
+pros::adi::DigitalOut valveA('A');
+pros::adi::DigitalOut valveB('B');
+pros::adi::DigitalOut valveH('H');
+
+// Inertial Sensor on port 10
+pros::Imu imu(7);
+
+// tracking wheels
+// horizontal tracking wheel encoder. Rotation sensor, port 20, not reversed
+
+pros::Rotation horizontalEnc(4);
+
+// vertical tracking wheel encoder. Rotation sensor, port 11, reversed
+pros::Rotation verticalEnc(5);
+
+// horizontal tracking wheel. 1.8" diameter, 0.5" offset, back of the robot (negative)
+lemlib::TrackingWheel horizontal(&horizontalEnc, 2, 1);
+
+// vertical tracking wheel. 1.8" diameter, 1.5" offset, left of the robot (negative)
+lemlib::TrackingWheel vertical(&verticalEnc, 2, 1.25); 
+
+// 2 ，-1
+// 2 ， 1.25
+// 1.9 , -0.5
+// 1.9 , -1.5
+
+
+// 16.5*14
+// 8.25*7
+
+// drivetrain settings
+lemlib::Drivetrain drivetrain(&leftMotors, // left motor group
+                              &rightMotors, // right motor group
+                              14, // 14 inch track width
+                              3, // using new 3" omnis
+                              450, // drivetrain rpm is 600(We use blue motor)
+                              8 // horizontal drift is 2. If we had traction wheels, it would have been 8
+);
+
+// lateral motion controller
+lemlib::ControllerSettings linearController(1, // proportional gain (kP)
+                                            1, // integral gain (kI)
+                                            1, // derivative gain (kD)
+                                            3, // anti windup
+                                            1, // small error range, in inches
+                                            100, // small error range timeout, in milliseconds
+                                            3, // large error range, in inches
+                                            500, // large error range timeout, in milliseconds
+                                            0 // maximum acceleration (slew)
+);
+
+// angular motion controller
+lemlib::ControllerSettings angularController(1, // proportional gain (kP)
+                                             1, // integral gain (kI)
+                                             1, // derivative gain (kD)
+                                             3, // anti windup
+                                             1, // small error range, in degrees
+                                             100, // small error range timeout, in milliseconds
+                                             3, // large error range, in degrees
+                                             500, // large error range timeout, in milliseconds
+                                             0 // maximum acceleration (slew)
+);
+
+// sensors for odometry
+lemlib::OdomSensors sensors(&vertical, // vertical tracking wheel
+                            nullptr, // vertical tracking wheel 2, set to nullptr as we don't have a second one
+                            &horizontal, // horizontal tracking wheel
+                            nullptr, // horizontal tracking wheel 2, set to nullptr as we don't have a second one
+                            &imu // inertial sensor
+);
+
+// input curve for throttle input during driver control
+lemlib::ExpoDriveCurve throttleCurve(3, // joystick deadband out of 127
+                                     10, // minimum output where drivetrain will move out of 127
+                                     1.019 // expo curve gain
+);
+
+// input curve for steer input during driver control
+lemlib::ExpoDriveCurve steerCurve(3, // joystick deadband out of 127
+                                  10, // minimum output where drivetrain will move out of 127
+                                  1.019 // expo curve gain
+);
+
+// create the chassis
+lemlib::Chassis chassis(drivetrain, linearController, angularController, sensors, &throttleCurve, &steerCurve);
+
+
+/**
+ * Runs initialization code. This occurs as soon as the program is started.
+ *
+ * All other competition modes are blocked by initialize; it is recommended
+ * to keep execution time for this mode under a few seconds.
+ */
+
+bool g_isBlue = false;
+/*
+lemlib::Pose fieldToOdom(double Xf, double Yf, double theta_f_deg) {
+    return lemlib::Pose(
+        Yf,  
+        140.41 - Xf,  
+        std::isnan(theta_f_deg) ? NAN : wrap_deg(theta_f_deg)
+    );
+}
+lemlib::Pose odomToField(double Xo, double Yo, double theta_o) {
+    return lemlib::Pose(
+        140.41 - Yo,
+        Xo,
+        std::isnan(theta_o) ? NAN : wrap_deg(theta_o)
+    );
+}
+*/
+
+double fieldAngleToOdom(double theta_field) {
+    return wrap_deg(theta_field);
+}
+
+// 场地坐标（你测量的）
+const double Xf_red  = 8.25;
+const double Yf_red  = 54.3;
+const double Thf_red = 0;   // 先保留你现在的朝向
+
+const double Xf_blue = 132.18;
+const double Yf_blue = 82.66;
+const double Thf_blue = 180.0;
+
+void initialize() {
+    pros::lcd::initialize(); // initialize brain screen
+    pros::lcd::print(0, "init, chassis=%p", &chassis);
+
+    horizontalEnc.reset_position();
+    verticalEnc.reset_position();
+
+    chassis.calibrate(); // calibrate sensors   
+    pros::delay(100);
+
+    if (!g_isBlue) {
+        chassis.setPose(Xf_red, Yf_red, 90);
+    } else {
+        chassis.setPose(Xf_blue, Yf_blue, -90);
+    }
+
+    /*
+    chassis.setPose(54.3, 8.25,0); //,x,theta
+    if(g_isBlue){
+        chassis.setPose(82.66,140.43-8.25,180); // y,x,theta
+    }
+    */
+    
+    //pros::delay(500);                    
+    //bool ok = run_mirror_tests();
+    //pros::lcd::print(0, ok ? "Mirror Test: PASS" : "Mirror Test: FAIL");
+
+    //g_isBlue = true; // Blue side = true, Red side = false. Use this bool to reflect the coordinate of the map.
+    
+
+    //chassis.setPose();
+
+    // the default rate is 50. however, if you need to change the rate, you
+    // can do the following.
+    // lemlib::bufferedStdout().setRate(...);
+    // If you use bluetooth or a wired connection, you will want to have a rate of 10ms
+
+    // for more information on how the formatting for the loggers
+    // works, refer to the fmtlib docs
+
+    // thread to for brain screen and position logging
+    /*
+    pros::Task screenTask([&]() {
+        while (true) {
+            // print robot location to the brain screen
+            pros::lcd::print(0, "X: %f", chassis.getPose().x); // x
+            pros::lcd::print(1, "Y: %f", chassis.getPose().y); // y
+            pros::lcd::print(2, "Theta: %f", chassis.getPose().theta); // heading
+            // log position telemetry
+            lemlib::telemetrySink()->info("Chassis pose: {}", chassis.getPose());
+            // delay to save resources
+            pros::delay(50);
+        }
+    });
+    */
+}
+
+const float VMIN = 0.1f;
+const float VMAX = 0.75f;
+const int DSTOP = 350; //最低航行速度阀值(单位mm)
+const int R=400; //减速半径(单位mm)
+const float DECELERATION = 1.25f; // deceleration控制减速效果(0,2之间)
+
+
+double M4_Distance_Angle_Calculation(double xt_coord=0.0,double yt_coord=0.0,float thetat_coord=NAN,char mode = 'd'){  // in inches
+    //mode control mode, d is calculated distance, t is calculated angle. 
+    //Both distance and angle are calculated using track center as the base point of the robot
+    lemlib::Pose Odom_p = chassis.getPose(); //x,y coordinates in inches , odom coord.
+    //auto Odom_p = fieldToOdom(p.x,p.y,p.theta);
+
+    const double xb = Odom_p.x;
+    const double yb = Odom_p.y;
+    const double thetab = Odom_p.theta;
+
+    auto tgt = fieldToOdom(xt_coord,yt_coord,thetat_coord);
+    double xt = tgt.x;
+    double yt = tgt.y;
+    double thetat = tgt.theta;
+
+    if(mode == 'd'){
+        return std::hypot(xt-xb,yt-yb);             
+    } else if(mode == 't'){
+        if(std::isnan(thetat)){ //Target without specific angle(block)
+            const double dx = xt - xb;
+            const double dy = yt - yb;
+
+            if(std::abs(dx) < 1e-6 && std::abs(dy) < 1e-6) return 0.0;
+
+            double phi = std::atan2(dy,dx) * 180.0 / M_PI; //Absolute direction angle(in degree)
+            return wrap_deg(phi - thetab);
+        }else{ //Target with specifc angle(loader,goal etc.)
+            return wrap_deg(static_cast<double>(thetat) - thetab);
+        }
+    }
+    return 0.0;
+}
+
+double M1_Distance_Speed_Maping(double xt=0.0,double yt=0.0){
+    double d=M4_Distance_Angle_Calculation(xt,yt,NAN,'d'); //Calculate distance (in inches)
+    d*=25.4; //Convert inches to millimeters 
+    double speed = VMIN+(VMAX-VMIN)*std::pow(std::clamp((std::max(0.0,d-DSTOP)/R),0.0,1.0),DECELERATION);
+    return speed;
+} 
+
+
+/*
+------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------这些数据需要测量和调整!--------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
+const int Tenter_feed   =  350;   // Distance Sensor detects block enter/exit the distance sensor view threshold (unit: mm)
+const int Texit_feed    =  500;   // Set Tenter < Texit A hysteresis is formed, creating a buffer zone to prevent block jitter from causing multiple counts or missed counts.
+const int Tmax_feed     =  900;  // Distance sensor Longest/shortest allowed occlusion time (unit: ms)
+const int Tmin_feed     =  90; 
+const int Tcool_min     =  120;   // minimum time for cooldown state (unit: ms)
+const int Tafter_count  =  100;   // minimum time for success counting (unit: ms)
+
+const int Tbounce_enter = 20; //Threshold for double bounce(unit: ms) 
+const int Tbounce_exit  = 30; //This provides a double layer of protection(With the hystersis of Tenter < Texit)
+const int TMAX_intake = 6000;        //maximum time for the module
+
+const float alpha_ema = 0.3;  //Filtering constant, the larger the value the more aggressive, the smaller the more conservative.
+
+// The voltage setting for intake_motor for different state
+constexpr int MOTORVOLTAGE_IDLE = 8000; 
+constexpr int MOTORVOLTAGE_PULL = 11000;
+constexpr int MOTORVOLTAGE_STOP = 0;
+constexpr int MOTORVOLTAGE_JAM  = -9000;
+
+constexpr int TIDLE_ABORT_MS = 2500; //Maximum Waiting time.(unit: ms)
+
+/*
+------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------以上数据需要测量和调整!--------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
+
+
+
+struct Feed_Result{ // The struct used for represent the result of the module
+    int count = 0;
+    bool JAM = false; 
+    bool IDLE_TIMEOUT = false;
+};
+
+struct MotorGuard { // The motor guard for Making the motor slow down and brake immediately when it is destroyed.
+    pros::Motor& m;
+    explicit MotorGuard(pros::Motor& m_): m(m_) {}
+    ~MotorGuard(){ m.move_voltage(MOTORVOLTAGE_STOP); } 
+};
+
+Feed_Result M5_Feed_Quantity_Monitoring(int Target){ 
+
+    MotorGuard guard(intake_motor);
+    intake_motor.move_voltage(MOTORVOLTAGE_IDLE);
+    
+    enum State_Feed{Waiting,Starting,Locking,CoolDown}; // State System
+
+    int    time_enter      = 0;                 // The time when the block enter the robot
+    int    cooldown_enter  = 0;                 // The time when the cooldown starts.
+    int    Tmode_start     = pros::millis();    // The time when the module starts
+    int    last_count_time = 0;                 // The time of tlast count
+    int    time            = 0;                 // The time now
+
+    double Dist_prev       = intake_distance_sensor.get();  // The distance used for Filtering.
+    double dist            = 0.0;               // The distance from distance_sensor
+
+    int last_activity = pros::millis(); 
+
+    State_Feed Current_state=Waiting;      
+
+    Feed_Result res{};
+
+    // The filtering function is used to prevent misjudgments caused by sudden fluctuations in the value of the distance variable.
+    auto ema = [](double previous, double current){return alpha_ema*current + (1.0-alpha_ema)*previous;}; 
+
+    while(pros::millis() - Tmode_start < TMAX_intake){
+        dist=intake_distance_sensor.get();
+        dist = ema(Dist_prev, dist);
+        Dist_prev = dist;
+
+        int time=pros::millis();
+
+        const bool has_activity = (Current_state != Waiting) || (dist < Tenter_feed);
+        if (has_activity) last_activity = time;
+        if ((time - last_activity) >= TIDLE_ABORT_MS){
+            res.IDLE_TIMEOUT = true;
+            break;
+        }
+
+        if(Current_state != CoolDown && time_enter){ // JAM
+            const int held_time = time - time_enter;
+            if(dist < Tenter_feed && held_time >= Tmax_feed){ 
+                res.JAM = true;
+                intake_motor.move_voltage(MOTORVOLTAGE_JAM); // The motor reverses, attempting to rotate the block out to release JAM.
+                pros::delay(200);
+                intake_motor.move_voltage(MOTORVOLTAGE_STOP);
+                break;
+            }
+        }
+
+        switch (Current_state){
+            case Waiting:{
+
+                intake_motor.move_voltage(MOTORVOLTAGE_IDLE);
+                static int Tblock_first_come = 0;
+                if(dist < Tenter_feed){ // Waiting for the block
+                    if(!Tblock_first_come) {Tblock_first_come = time;}
+                    if(time - Tblock_first_come >= Tbounce_enter){
+                        Current_state = Starting;
+                        time_enter = time;
+                    }
+                } else{
+                    Tblock_first_come = 0;
+
+            }break;     
+            case Starting:{
+
+                intake_motor.move_voltage(MOTORVOLTAGE_IDLE);
+                const int held_time = time - time_enter;
+                static int Tblock_exit = 0;
+
+                // highest priority: use Time and Rotation value to enter the locking state.
+                if(held_time >= Tmin_feed){
+                    Current_state = Locking;
+                    Tblock_exit = 0;
+                    break;
+                }
+
+                if(dist >= Texit_feed){ // if the block leave early
+                    if(!Tblock_exit) {Tblock_exit = time;}
+                    if(time - Tblock_exit >= Tbounce_exit){
+                        Current_state = Waiting; // back to starting point
+                        time_enter = 0;
+                        Tblock_exit = 0;
+                    }
+                } else {
+                    Tblock_exit = 0;
+                }
+
+            }break;
+            case Locking:{
+
+                intake_motor.move_voltage(MOTORVOLTAGE_PULL);
+                if(dist > Texit_feed){
+                    res.count++;
+                    Current_state = CoolDown;
+                    cooldown_enter = time;
+                    last_count_time = time;
+                }
+                
+            } break;
+            case CoolDown:{
+
+                intake_motor.move_voltage(MOTORVOLTAGE_IDLE);
+                if((time - cooldown_enter) >= Tcool_min){
+                    Current_state = Waiting;
+                }
+
+            }break;
+         }
+        if(res.count >= Target && intake_distance_sensor.get() > Texit_feed && (time - last_count_time) >= Tafter_count) break;
+        pros::delay(15);
+        }
+    }
+    return res;
+}
+/*
+------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------这些数据需要测量和调整!--------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
+
+const int Tenter_outfeed         =  350;  // Distance Sensor detects block enter/exit the distance sensor view threshold (unit: mm)
+const int Texit_outfeed          =  500;
+const int Tmax_outfeed           =  1500; // Distance sensor Longest/shortest allowed occlusion time (unit: ms)
+const int Tmin_outfeed           =  150; 
+const int TMAX_outfeed           =  6000; //maximum time for the module(unit: ms)
+const int Tcool_min_outfeed      =  120;  // minimum time for shooting state (unit: ms)
+const int Tbounce_enter_outfeed  =  0;    //Threshold for double bounce(unit: ms) 
+const int Tbounce_exit_outfeed   =  0;
+
+const int gap_cool =  0; //Interval between pulse(mm)
+const int gap_off_enter  =  0; //Disconnect Value(mm)
+const int gap_off_exit  =  0;
+
+const uint32_t t_off = 0; //Outfeed Value
+
+constexpr int TIDLE_ABORT_MS_OUTFEED = 2500; //Maximum Waiting time.(unit: ms)
+
+
+/*
+------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------以上数据需要测量和调整!--------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
+const int INTAKE_SPEED = 1000;
+const int OUTF_EED_SPEED = 1000;
+void runIntakeForMs(int ms) {
+    // TODO: 换成你真实的电机对象/函数
+    intake_motor.move(MOTORVOLTAGE_PULL);  // 或 move_voltage(...)
+    pros::delay(ms);
+    intake_motor.move(0);      // 停
+}
+
+// 简单版：让 outfeed 转 ms 毫秒，然后停
+void runOutfeedForMs(int ms) {
+    // TODO: 换成你真实的电机对象/函数
+    outfeed_motor.move(MOTORVOLTAGE_PULL);
+    pros::delay(ms);
+    outfeed_motor.move(0);
+}
+
+Feed_Result M6_OUTFeed_Quantity_Monitoring(int Target) {
+
+    MotorGuard guard(outfeed_motor); 
+    outfeed_motor.move_voltage(MOTORVOLTAGE_IDLE); 
+
+    enum State_OUTFeed {Single, Flow};
+    enum State_OUTFeed_Block {Waiting, Starting, Locking, Shooting};
+
+    auto ema = [](double previous, double current){
+        return alpha_ema*current + (1-alpha_ema)*previous;
+    };
+
+    State_OUTFeed       Current_State       = Single;
+    State_OUTFeed_Block Current_Block_State = Waiting;
+    Feed_Result res{};
+
+    int t0 = pros::millis();
+    int last_activity = t0;
+
+    int time_enter_first = 0; //Used to prevent double bounce
+    int time_exit_first  = 0;
+    int time_hold_start  = 0;  //Record the time when the robot starts to shoot.
+    int time_last_clear  = 0;  //The timestamp of the last "sensor confirmed clearing"
+    int time_last_shoot  = 0;  //The timestamp of the last "successful count"
+
+    double dist = outfeed_distance_sensor.get();
+
+    while (pros::millis() - t0 < TMAX_outfeed) {
+
+        const int time_now = pros::millis();
+        const double dist_raw = outfeed_distance_sensor.get();
+        dist = ema(dist,dist_raw);
+
+        const bool blocked = (dist < Tenter_outfeed);
+        const bool clear   = (dist > Texit_outfeed);
+
+        const bool has_activity = (Current_Block_State != Waiting) || blocked;
+        if (has_activity) last_activity = time_now;
+        if (time_now - last_activity >= TIDLE_ABORT_MS_OUTFEED){
+            res.IDLE_TIMEOUT = true;   
+            break;
+        }
+
+        if (Current_State == Single) {
+            switch (Current_Block_State) {
+                case Waiting: {
+                    outfeed_motor.move_voltage(MOTORVOLTAGE_IDLE);//*
+                    if (blocked){
+                        if(!time_enter_first) time_enter_first = time_now;
+                        if(time_now - time_enter_first >= Tbounce_enter_outfeed){
+                            Current_Block_State = Starting;
+                            time_hold_start = time_now;          // Start timer
+                            time_enter_first = 0;
+                        }
+                    }else{
+                        time_enter_first = 0;
+                    }
+                } break;
+
+                case Starting: {
+                    outfeed_motor.move_voltage(MOTORVOLTAGE_IDLE);
+
+                    const uint32_t held_time = time_now - time_hold_start;      
+                    if (held_time >= (uint32_t)Tmin_outfeed){
+                        Current_Block_State = Locking;
+                        time_exit_first = 0;
+                    }
+                    if(clear){
+                        if(!time_exit_first) time_exit_first = time_now;
+                        if(time_now - time_exit_first >= Tbounce_exit_outfeed){
+                            Current_Block_State = Waiting;
+                            time_exit_first = 0;
+                            time_hold_start = 0;
+                        }
+                    }else{
+                        time_exit_first = 0;
+                        if(held_time >= Tmax_outfeed){
+                            res.JAM=true;
+                            break;
+                        }
+                    }
+                } break;
+                case Locking: {
+
+                    outfeed_motor.move_voltage(MOTORVOLTAGE_PULL);
+                    if (clear){
+                        if (!time_exit_first) time_exit_first = time_now;
+                        if (time_now - time_exit_first >= Tbounce_exit_outfeed){
+                            //Determine first, then update value
+                            const bool rapid = (time_last_shoot != 0) && ((time_now - time_last_shoot < gap_off_enter)); 
+
+                            res.count++;
+                            time_last_shoot = time_now;
+                            time_last_clear = time_now;
+                            Current_Block_State = Shooting;
+                            time_exit_first = 0;
+
+                            if(rapid){
+                                Current_State = Flow;
+                                Current_Block_State = Waiting;
+                            }
+                        }
+                    } else {
+                        time_exit_first = 0;
+                        if (time_now - time_hold_start >= Tmax_outfeed){
+                            res.JAM = true;
+                            break;
+                        }
+                    }
+
+                } break;
+                case Shooting: {
+                    outfeed_motor.move_voltage(MOTORVOLTAGE_PULL);
+                    if (clear && (time_now - time_last_shoot >= Tcool_min_outfeed)){
+                        Current_Block_State = Waiting;
+                    }
+                    if (clear) time_last_clear = time_now;
+                } break;
+            }
+        } else { // if Current_State == Flow
+            outfeed_motor.move_voltage(MOTORVOLTAGE_PULL);
+            if (clear){
+                if (!time_exit_first) time_exit_first = time_now;
+                if (time_now - time_exit_first >= Tbounce_exit_outfeed){
+                    res.count++;
+                    time_last_shoot = time_now;
+                    time_last_clear = time_now;
+                    time_exit_first = 0;
+                }
+            } else {
+                time_exit_first = 0;
+            }
+            // Flow exit: "Clear" takes too long (no next block) or the overall pause takes too long.
+            const bool no_next_block = clear && (time_now - time_last_clear >= gap_off_exit);
+            if (no_next_block){
+                Current_State = Single;
+                Current_Block_State = Waiting;
+            }
+        }
+        // Finish the task
+        if (res.count >= Target && dist > Texit_outfeed && (time_last_shoot == 0 || time_now - time_last_shoot >= t_off)) {
+            break;
+        }
+        // Update the previous rotation.
+        pros::delay(20);
+    }
+    return res;
+}
+/*
+------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------Auxiliary Modules----------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
+
+/*
+------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------Steering and forward module (can be used directly)------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
+inline std::pair<int,int> Error_Speed_Coarse_Mapping(double absErrorDeg){ // return {maxspeed, minspeed} (Unit: Voltage(0~127) )
+    if(absErrorDeg > 90) return {85,15};
+    if(absErrorDeg > 45) return {70,12};
+    if(absErrorDeg > 20) return {55,11};
+    if(absErrorDeg > 10) return {45,10};
+    return                      {38, 8};
+}
+
+void Face_Target_Direction(double dtheta){
+
+    if (std::isnan(dtheta)) {
+        pros::lcd::print(0, 0, "Skip NaN heading");
+        return;
+    }
+
+    lemlib::Pose pose = chassis.getPose(); // 这里我们就把它当成“odom坐标系”
+    double err = wrap_deg(dtheta - pose.theta);
+    double d0  = std::fabs(err);  // 只用来决定转速和超时
+
+    auto [MaxSpeed_Coarse, MinSpeed_Coarse] = Error_Speed_Coarse_Mapping(d0);
+    int t0 = (int)std::clamp(d0 * 10.0, 250.0, 900.0);
+
+    chassis.turnToHeading(dtheta, t0,
+        {.maxSpeed = MaxSpeed_Coarse,
+         .minSpeed = MinSpeed_Coarse,
+         .earlyExitRange = 2.0f});
+    chassis.waitUntilDone();
+
+    // coord -> Odom
+    /*
+    double d0 = std::fabs(M4_Distance_Angle_Calculation(0,0,dtheta,'t'));
+
+        auto [MaxSpeed_Coarse,MinSpeed_Coarse] = Error_Speed_Coarse_Mapping(d0);
+        int t0 = (int)std::clamp(d0*10.0, 250.0, 900.0); // time out, give the turning speed of 10ms/deg
+        chassis.turnToHeading(dtheta,t0,
+            {.maxSpeed=MaxSpeed_Coarse,.minSpeed=MinSpeed_Coarse,.earlyExitRange=2.0f}); 
+        chassis.waitUntilDone();
+
+    */
+     // Fine rotation
+    /*
+    double d1 = std::fabs(M4_Distance_Angle_Calculation(0,0,dtheta,'t'));
+    if(d1 > 1.0){ // If the value is less than this threshold, no fine-tuning is required.
+        int MaxSpeed_Fine = 35;
+        int MinSpeed_Fine = 8;
+        int t1 = (int)std::clamp(d1*12.0,250.0,750.0);
+        chassis.turnToHeading(dtheta,t1,
+            {.maxSpeed=MaxSpeed_Fine,.minSpeed=MinSpeed_Fine,.earlyExitRange=1.0f});
+        chassis.waitUntilDone();
+    }
+    */
+}
+
+enum class FaceMode {
+    NONE,           // 不管最后面向
+    FACE_TARGET,    // 让“前脸”对着目标点（intake 面）
+    BACK_TO_TARGET  // 让“屁股”对着目标点（outfeed 面）
+};
+
+inline double Speed_to_lem(double speed){ // the function that map the speed from M1 to Lemlib Range(0 ~ 127)
+    //Tip: Speed,VMIN,and VMAX are both percentages.
+    double percentage = std::clamp(speed,0.0,1.0); 
+    return (float)(percentage * 127.0);
+}
+void GoTo_with_Auxiliary(double TargetX,double TargetY,int total_ms = 2500, double speed = 0.85){
+    const int Change_Gap         = 60;     // Smallest change in time, Unit: ms
+    const int Movement_Min_Time  = 220;    // Unit: ms
+    const float Min_Speed_Change = 8.0f;   // Minimum speed change threshold (no update when the speed change is less than this value)
+    const float Min_Speed_Gap    = 14.0f;  // Min speed, unit: voltage
+    const float Finish_Line      = 0.80f;  // Finish Line for movment, Unit: inches
+    const float Exit_Range       = 0.75f;
+    
+    float last_speed          = -1.0f;
+    uint32_t last_update_time = 0;
+    uint32_t time_now         = pros::millis();
+
+    while(pros::millis() - time_now < (uint32_t)total_ms){
+
+        auto pose = chassis.getPose();
+        auto TargetRaw = fieldToOdom(TargetX, TargetY, 0);
+
+        // ① 先算“原始向量”
+        double dx = TargetRaw.x - pose.x;
+        double dy = TargetRaw.y - pose.y;
+
+        // ② 逆时针旋转 90°： (dx',dy') = (-dy, dx)
+        double dx_corr = -dy;
+        double dy_corr =  dx;
+
+        // ③ 得到“修正过”的目标点（在 odom 坐标系里）
+        lemlib::Pose TargetCorr(
+            pose.x + dx_corr,
+            pose.y + dy_corr,
+            0 // 这里角度无所谓，moveToPoint自己会算
+        );
+
+        
+        auto Target = fieldToOdom(TargetX, TargetY, 0);
+
+        float dist = std::hypot(TargetCorr.x - pose.x , TargetCorr.y - pose.y);
+        if(dist <= Finish_Line) break; //Very close to the target, this task ends.
+
+        //Calculate the speed (in 0~127)
+        float speed_in_M1 = M1_Distance_Speed_Maping(TargetCorr.x,TargetCorr.y);
+        float speed_in_lem = Speed_to_lem(speed_in_M1);
+
+        uint32_t time_now = pros::millis();
+        bool time_check = (time_now - last_update_time) >= (uint32_t)Change_Gap; // time check
+        bool speed_check = (last_speed < 0 || std::fabs(speed_in_lem - last_speed) >= Min_Speed_Change); // speed check
+        if(time_check && speed_check){
+            float min_Speed = std::min(speed_in_lem,Min_Speed_Gap);
+            chassis.moveToPoint(
+                TargetCorr.x,TargetCorr.y,total_ms,
+                {.maxSpeed = speed_in_lem, .minSpeed=min_Speed, .earlyExitRange=Exit_Range}
+            );
+            last_speed       = speed_in_lem;
+            last_update_time = time_now;
+        }
+        pros::lcd::print(1,"Target:%.2f,%.2f",Target.x,Target.y);
+        pros::lcd::print(2,"Current Location: %.2f, %.2f",pose.x,pose.y);
+        pros::lcd::print(3,"DIst: %.2f",dist);
+        pros::delay(15);
+    }
+    
+}
+void Goto_with_Auxiliary_NODE(double TargetX, double TargetY,
+                              int total_ms = 2500, double speed = 0.85, FaceMode faceMode = FaceMode::NONE){
+    const float Exit_Range = 0.75f;   // 距离小于这个就认为到了
+
+    // 1. 当前姿态（和 Face_Point_Direction 一样，直接用 chassis.getPose）
+    lemlib::Pose pose = chassis.getPose();
+
+    // 2. 计算到目标的向量（同一坐标系，不再做 fieldToOdom 和 90° 旋转）
+    double dx   = TargetX - pose.x;
+    double dy   = TargetY - pose.y;
+    double dist = std::hypot(dx, dy);
+
+    // 离目标太近就不动了，防止抖动
+    if (dist <= Exit_Range) return;
+
+    /*
+    double phi = std::atan2(dy, dx) * 180.0 / M_PI;      // 目标全局朝向
+    double err = wrap_deg(phi - pose.theta);             // 当前 heading 和目标方向的夹角
+    if (std::fabs(err) > 120.0) {
+        Face_Target_Direction(phi);   // 这一步你自己可控，不会莫名其妙
+        pose = chassis.getPose();     // 更新一下姿态
+    }
+    */
+
+    bool isfoward = (faceMode == FaceMode::BACK_TO_TARGET) ? false : true;
+
+    // 3. 速度：speed 是 0~1 的比例，用 Speed_to_lem 转成 0~127
+    double speed_clamped = std::clamp(speed, 0.0, 1.0);
+    const float maxSpeed_lem = Speed_to_lem(speed_clamped);
+    const float minSpeed_lem = 20.0f;   // 给个不为 0 的最小速度防止卡死
+
+    // 4. 直接调用 lemlib 的 moveToPoint
+    chassis.moveToPoint(
+        TargetX, TargetY, total_ms,
+        {
+            .forwards      = isfoward,
+            .maxSpeed      = maxSpeed_lem,
+            .minSpeed      = minSpeed_lem,
+            .earlyExitRange= Exit_Range
+        },
+        false  // 等待这次动作完成（同步）
+    );
+    chassis.waitUntilDone();
+
+    
+    // 5. 可选：调试信息
+    pros::lcd::print(1, "Goto NODE Target : %.2f, %.2f", TargetX, TargetY);
+    pros::lcd::print(2, "Goto NODE Pose   : %.2f, %.2f", pose.x, pose.y);
+    pros::lcd::print(3, "Goto NODE Dist   : %.2f",       dist);
+}
+
+
+
+
+// Turn to a fixed heading
+
+
+/*
+// Turn to a specific point(pretty similar to previous function)
+void Face_Point_Direction(double TargetX, double TargetY) {
+    // 地图坐标 -> odom 坐标
+    auto tgt = fieldToOdom(TargetX, TargetY, 0); // 或者 coordToOdom，看你现在用哪个
+
+    // 当前位姿 (odom)
+    lemlib::Pose pose = chassis.getPose();
+
+    // 如果离目标太近，就不转了
+    double dx   = tgt.x - pose.x;
+    double dy   = tgt.y - pose.y;
+    double dist = std::hypot(dx, dy);
+    if (dist < 1.0) return;
+
+    // 粗略估一下角度误差，只是用来决定速度，不参与方向判定
+    double phi = std::atan2(dy, dx) * 180.0 / M_PI;
+    double err = phi - pose.theta;
+    while (err >= 180) err -= 360;
+    while (err < -180) err += 360;
+    double absErr = std::fabs(err);
+    if (absErr < 2.5) return;
+
+    auto [MaxSpeed_Coarse, MinSpeed_Coarse] = Error_Speed_Coarse_Mapping(absErr);
+    int t0 = (int)std::clamp(absErr * 10.0, 250.0, 900.0);
+
+    // **方向完全交给 lemlib 的 turnToPoint 来算**
+    controller.print(0,0,"%.2f,%.2f,%.2f",pose.theta,phi,err);
+    chassis.turnToPoint(
+        tgt.x, tgt.y, t0,
+        {.maxSpeed = MaxSpeed_Coarse,
+         .minSpeed = MinSpeed_Coarse,
+         .earlyExitRange = 2.0f}
+    );
+    chassis.waitUntilDone();
+    
+
+    // 调试输出
+    pros::lcd::print(1, "Target: %.2f, %.2f", TargetX, TargetY);
+    pros::lcd::print(2, "Pose  : %.2f, %.2f, θ=%.2f", pose.x, pose.y, pose.theta);
+    pros::lcd::print(3, "phi=%.2f, err=%.2f", phi, err);
+    pros::delay(20);
+}
+*/
+
+void Face_Point_Direction(double TargetX,double TargetY){
+    
+     // 1. 当前姿态（假定 chassis.getPose() 的 x,y,theta 全部是在同一个“odom坐标系”）
+    lemlib::Pose pose = chassis.getPose();
+
+    // 3. 计算 odom 坐标系下的向量
+    double dx = TargetX - pose.x;
+    double dy = TargetY - pose.y;
+
+    if (std::abs(dx) < 1e-6 && std::abs(dy) < 1e-6) return; // 就在脚边，不转
+
+    // 4. 直接用 atan2 得到“目标绝对朝向”phi（odom 坐标系）
+    double phi = std::atan2(dy, dx) * 180.0 / M_PI;
+    //phi -= 90.0; //旋转坐标系回调
+    double targetHeading = wrap_deg(-phi + 90);
+
+    // 日志：当前角度、希望的 phi，以及误差
+    double err = wrap_deg(targetHeading - wrap_deg(pose.theta));
+    controller.print(0,0,"%.2f,%.2f,%.2f", wrap_deg(pose.theta), phi, targetHeading);
+
+    // 5. 交给前面简化后的 Face_Target_Direction 来执行转向
+    Face_Target_Direction(targetHeading);
+
+    pros::delay(20);
+
+    /*
+    double theta = M4_Distance_Angle_Calculation(TargetX, TargetY, NAN, 't');
+    //theta = -theta;  
+
+    lemlib::Pose pose = chassis.getPose(); // in odom coord. frame
+    //auto pose_odom = fieldToOdom(pose.x,pose.y,pose.theta);
+
+    double currentTheta = pose.theta;
+    double targetTheta_raw  = wrap_deg(currentTheta + theta);
+
+    controller.print(0,0,"%.2f,%.2f,%.2f",theta,currentTheta,targetTheta_raw);
+    Face_Target_Direction(targetTheta_raw);    
+
+    pros::lcd::print(1,"Target:%.2f,%.2f",TargetX,TargetY);
+    pros::lcd::print(2,"Current Location: %.2f, %.2f",pose.x,pose.y);
+    pros::lcd::print(3,"d0,d1: %.2f",theta);
+    
+
+    pros::delay(20);
+    */
+    
+}
+
+
+/*
+Use Example:
+
+void autonomous(){
+    Face_Target_Direction(24,8);    
+    GoTo_with_Auxiliary(24,8)  
+    Face_Point_Direction(90)     
+}
+
+*/
+
+
+/*
+------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------Steering and forward module (can be used directly)------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
+
+/*
+------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------Multithreaded operation-----------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
+
+
+class TaskThread_Queue{
+    public: 
+        void push(const Command& cmd){ // Rewrite(add a lock)
+            lock.take(TIMEOUT_MAX); // Use lock to make sure other other threads will not misuse the task.
+            q.push(cmd);
+            lock.give();
+        }
+        std::optional<Command> try_pop(){ // optional: no result return nullopt
+            std::optional<Command> Out_put;
+            lock.take(TIMEOUT_MAX);
+            if(!q.empty()){Out_put = q.front(); q.pop();} // Prevent pop operations on empty queues
+            lock.give();
+            return Out_put;
+        }
+        bool empty(){ // Rewrite the original empty function(add a lock)
+            bool Is_Empty;
+            lock.take(TIMEOUT_MAX);
+            Is_Empty=q.empty();
+            lock.give();
+            return Is_Empty;
+        }
+
+    private: 
+        pros::Mutex lock;
+        std::queue<Command> q;
+};
+
+class Worker{ // Worker templates. Each worker's substrate is customized by overriding the pure virtual function Handle
+    public:
+        //explicit Avoids implicit conversion of types. Need to use the referrer & to call private queue
+        explicit Worker(TaskThread_Queue& queue): q(queue){} 
+        void start(){ //Begining function
+            if(task){
+                if(done.load()){
+                    task -> remove();
+                    delete task;
+                    task = nullptr;
+                }
+                else{ return; }
+            } // preventing start a task that has already started
+            running = true;
+            done = false;
+            //Start a new thread, this pointer to the loop, name it “worker”".
+            task = new pros::Task(trampoline, (void*)this, TASK_PRIORITY_DEFAULT+1, 4096, "worker"); 
+        }
+        void stop(){
+            running = false;
+            q.push(Command{CmdStop{}});
+        } 
+        //The shutdown function. running controls the while loop in the loop function
+        //and setting it to false naturally stops the task from running.
+        bool finished() const{return done.load();} //Type transition, converting atomic<bool> to a regular bool.
+
+        ~Worker(){ //Destructor: Automatically performs aftercare when the worker is destroyed.
+            running = false; //double check that the loop is closed
+            while(!done.load()) pros::delay(5);
+            if(task){
+                task -> remove();
+                delete task;
+                task = nullptr;
+            }
+        }
+    protected:
+        //A core part of each worker.
+        //Pure virtual functions ensure that derived classes must override the function,
+        //implanting each thread's functionality by overriding the handle function
+        virtual void handle(const Command& cmd) = 0; 
+        TaskThread_Queue& q; 
+        std::atomic<bool> running{false}, done{false}; 
+
+    private:
+        static void trampoline(void* p){ static_cast<Worker*>(p)->loop();}
+        /*  
+            Since pros::Task needs void(*)(void *) so that there is no return, the argument list is only a generic pointer void*, and the whole is a function pointer type. 
+            We need this implicit function as a transitive interface
+            Essentially use this as a jumping off point to bind the loop function in the Worker to the generic pointer p. 
+            to satisfy the this keyword in Task, linking the loop function to the thread.
+            
+            使用worker*是因为loop函数是private的，需要应用才能调用否则会为空。
+            该指针函数为隐式函数是因为如果是显式函数，则该函数的类型会变成void(Worker::*)(void *)不满足Task需要的类型。
+        */
+
+        void loop(){ //The core working kernel of Worker. Use private for security
+            while(running){ 
+                //auto automatically recognizes the type, which in this case is optional. i.e., it may return Command, or it may be null.
+                if(auto c = q.try_pop()){ 
+                    if(std::holds_alternative<CmdStop>(*c)){running = false; break;} //If the returned command is stop, the task is terminated.
+                    handle(*c); //otherwise funcion normally
+                }else{
+                    pros::delay(10); //Take a break when there's an empty queue
+                }
+            }
+            done = true; //Mark done when finished
+        }
+        pros::Task* task{nullptr}; 
+};
+
+std::atomic<bool> g_drive_busy{false};
+class DriveWorker : public Worker{
+    public:
+        using Worker::Worker;
+    protected:
+        void handle(const Command& cmd) override{ //Rewrite the handle function to design the specific function for this worker.
+            if(const auto* t0 = std::get_if<CmdFaceTargetDirection>(&cmd)){  
+                g_drive_busy.store(true);
+                Face_Target_Direction(t0 -> TargetDeg);
+                g_drive_busy.store(false);
+            }else if(const auto* t1 = std::get_if<CmdFacePointDirection>(&cmd)){
+                g_drive_busy.store(true);
+                Face_Point_Direction(t1 -> TargetX, t1 -> TargetY);
+                g_drive_busy.store(false);
+            }else if(const auto* t2 = std::get_if<CmdGoto>(&cmd)){
+                g_drive_busy.store(true);
+                GoTo_with_Auxiliary(t2 -> TargetX, t2 -> TargetY, t2 -> ms);
+                g_drive_busy.store(false);
+            }else{pros::lcd::print(6, "[Drive] Unknown command");}
+        }
+};
+class IOWorker : public Worker{
+    public:
+        using Worker::Worker;
+    protected:
+        void handle(const Command& cmd) override{
+            if(const auto* t0 = std::get_if<CmdIntake>(&cmd)){
+                M5_Feed_Quantity_Monitoring(t0 -> Target_Number);
+            }else if(const auto* t1 = std::get_if<CmdOutfeed>(&cmd)){
+                M6_OUTFeed_Quantity_Monitoring(t1 -> Target_Number);
+            }else if(const auto* t2 = std::get_if<CmdWaitDriveIdle>(&cmd)){
+                const int start = pros::millis();
+                while((g_drive_busy.load())&&(pros::millis()-start < t2 -> timeout_ms)){
+                    pros::delay(10); //wait until the Driveworker done or timeout.
+                }
+            }else{pros::lcd::print(6, "[IO] Unknown command");}
+        }
+};
+
+/*
+------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------Multithreaded operation----------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
+
+
+/**
+ * Runs while the robot is disabled
+ */
+void disabled() {}
+
+/**
+ * runs after initialize if the robot is connected to field control
+ */
+void competition_initialize() {}
+
+// get a path used for pure pursuit
+// this needs to be put outside a function
+ASSET(example_txt); // '.' replaced with "_" to make c++ happy
+
+/**
+ * Runs during auto
+ *
+ * This is an example autonomous routine which demonstrates a lot of the features LemLib has to offer
+ */
+
+
+// three functions to find the coordinate, angle in the struct.
+
+
+    /*
+    if(auto c = find_coord("UnderGoal_right_red_block_right")){
+       auto p = transform_for_alliance(*c, g_isBlue);
+        qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        qIO.push(CmdIntake{2});
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+    }else{pros::lcd::print(1,"Can not find Coordinate of UnderGoal_right_red_block_right!");}
+
+    if(auto c = find_coord("Center_right_red_block_right")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+    }else{pros::lcd::print(1,"Can not find Coordinate of Center_right_red_block_right");}
+    */
+   
+
+// extremely easy module, used for emergency autonomous script
+void drive_arcade_ms(int forward, int turn, int ms) {
+    chassis.arcade(forward, turn, true); // linear
+    pros::delay(ms);
+    chassis.arcade(0, 0, true);
+}
+
+void Turn_Relative(double deltaDeg) {
+    lemlib::Pose p = chassis.getPose();
+    double targetHeading = wrap_deg(p.theta + deltaDeg);
+
+    Face_Target_Direction(targetHeading);
+}
+
+
+TaskThread_Queue qDrive;
+TaskThread_Queue qIO;
+
+static DriveWorker drive(qDrive);
+static IOWorker    io(qIO);
+
+void Emergency() {
+    // <1> 转到三连块
+    drive_arcade_ms(60, 0, 670);
+
+    Turn_Relative(20);
+    //Turn_Relative(-20);
+
+    // <2> 边慢走边 intake，吃三连块
+    valveB.set_value(false);
+    const int MS_INTAKE_DRIVE = 1100;
+    
+    intake_motor.move_voltage(-12000);
+
+    drive_arcade_ms(20, 0, 3500);
+    pros::delay(400);
+    drive_arcade_ms(-60, 0, 230); //200
+    pros::delay(400);
+    intake_motor.move_voltage(0);
+
+    // <3> 转到lower goal
+    Turn_Relative(-65);
+    //Turn_Relative(85);
+
+
+    // <4> 直走
+    const int MS_TURN_TO_GOAL = 185; 
+    drive_arcade_ms(80, 0, MS_TURN_TO_GOAL);
+
+    // <5> 吐块: 卡时间控制吐 1-2 块
+
+    intake_motor.move_voltage(6000);
+
+    pros::delay(3350);
+    intake_motor.move_voltage(0);
+    pros::delay(200);
+
+    chassis.arcade(0, 0, true);
+
+    /*
+    outfeed_motor.move_voltage(12000);
+    pros::delay(2850);
+    outfeed_motor.move_voltage(0);
+    pros::delay(200);
+    */
+
+    // <6> 无需转向直接直走到spac point
+    
+    const int MS_DRIVE_TO_SPEC = 1100;
+    drive_arcade_ms(-80,0,600);
+
+    //Turn_Relative(-35);
+    //Turn_Relative(35);
+
+    drive_arcade_ms(-80,0,365);
+    pros::delay(100);
+    // <7> 转到Long goal
+    Turn_Relative(-125);
+    //Turn_Relative(115);
+
+    valveA.set_value(true);
+    pros::delay(100);
+    // <8> 直走对准
+    
+    const int MS_DRIVE_TO_LONGGOAL_WITH2 = 275;
+    drive_arcade_ms(-80,0,MS_DRIVE_TO_LONGGOAL_WITH2);
+    valveB.set_value(true);
+    pros::delay(100);
+    // <9> 吐
+    outfeed_motor.move_voltage(12000);
+    intake_motor.move_voltage(-12000);
+    pros::delay(2200);
+    outfeed_motor.move_voltage(0);
+    intake_motor.move_voltage(0);
+
+    // <10> 去loader(无需转向)
+    
+    const int MS_DRIVE_TO_LOADER = 130;
+    intake_motor.move_voltage(-12000);
+    drive_arcade_ms(120,0,MS_DRIVE_TO_LONGGOAL_WITH2);
+    pros::delay(2750);
+    intake_motor.move_voltage(0);
+    pros::delay(500);
+    // <11> 回long goal
+    const int MS_DRIVE_TO_LONGGOAL_WITH3 = 800;
+    drive_arcade_ms(-80,0,MS_DRIVE_TO_LONGGOAL_WITH3);
+
+    // <12> 吐
+    valveA.set_value(true);
+    outfeed_motor.move_voltage(12000);
+    pros::delay(2000);
+    outfeed_motor.move_voltage(0);
+
+    // --- 收尾：停住 ---
+    chassis.arcade(0, 0, true);
+    
+}
+
+/*
+Road Map:
+Plan B(最基础) -> 高级转向 -> 简单移动路线变成高级移动模块(直走，不涉及边走边捡) -> 全高级移动 -> 多线程 -> IO
+如果高级移动还是会炸，可以考虑先回归IO最后整高级移动
+*/
+
+void Normal_Using() {
+    // <1> 转到三连块
+    drive_arcade_ms(60, 0, 670);
+
+    if(auto c = find_coord("Center_right_red_block_right")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        Face_Point_Direction(p.x_co,p.y_co);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Center_right_red_block_right!");}
+
+    
+    
+    //Turn_Relative(-20);
+    pros::delay(1000);
+    // <2> 边慢走边 intake，吃三连块
+    valveB.set_value(false);
+    const int MS_INTAKE_DRIVE = 1100;
+    //intake_motor.move_voltage(-12000);
+
+    drive_arcade_ms(20, 0, 3500);
+    pros::delay(400);
+    drive_arcade_ms(-60, 0, 500);
+    /*
+    drive_arcade_ms(-40, 0, 150);
+    pros::delay(400);
+    intake_motor.move_voltage(0);
+    */
+    
+    // <3> 转到lower goal
+    if(auto c = find_coord("LowerGoal_red_end")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        Face_Point_Direction(p.x_co,p.y_co);
+    }else{pros::lcd::print(1,"Can not find Coordinate of LowerGoal_red_end!");}
+
+    //Turn_Relative(85);
+    
+    
+    // <4> 直走
+    const int MS_TURN_TO_GOAL = 225; 
+    drive_arcade_ms(80, 0, MS_TURN_TO_GOAL);
+
+    // <5> 吐块: 卡时间控制吐 1-2 块
+    //intake_motor.move_voltage(12000);
+    pros::delay(2850);
+    //intake_motor.move_voltage(0);
+    pros::delay(200);
+
+    chassis.arcade(0, 0, true);
+
+    /*
+    outfeed_motor.move_voltage(12000);
+    pros::delay(2850);
+    outfeed_motor.move_voltage(0);
+    pros::delay(200);
+    */
+
+    // <6> 无需转向直接直走到spac point
+    
+    const int MS_DRIVE_TO_SPEC = 1100;
+    drive_arcade_ms(-80,0,620);
+
+    if(auto c = find_coord("Left_bottom_SpecPoint")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        Face_Point_Direction(p.x_co,p.y_co);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Left_bottom_SpecPoint!");}
+    
+    //Turn_Relative(35);
+
+    drive_arcade_ms(80,0,420);
+    pros::delay(200);
+    // <7> 转到Long goal
+    if(auto c = find_coord("Right_LongGoal_red_end")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        Face_Point_Direction(p.x_co,p.y_co);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Right_LongGoal_red_end!");}
+
+    //Turn_Relative(115);
+
+    valveA.set_value(true);
+    pros::delay(500);
+    // <8> 直走对准
+    
+    const int MS_DRIVE_TO_LONGGOAL_WITH2 = 350;
+    drive_arcade_ms(-80,0,MS_DRIVE_TO_LONGGOAL_WITH2);
+    valveB.set_value(true);
+    pros::delay(200);
+
+    // <9> 吐
+    //outfeed_motor.move_voltage(12000);
+    pros::delay(1200);
+    outfeed_motor.move_voltage(0);
+
+    // <10> 去loader(无需转向)
+    
+    const int MS_DRIVE_TO_LOADER = 500;
+    //intake_motor.move_voltage(-12000);
+    drive_arcade_ms(120,0,MS_DRIVE_TO_LONGGOAL_WITH2);
+    pros::delay(2750);
+    intake_motor.move_voltage(0);
+    pros::delay(500);
+    // <11> 回long goal
+    const int MS_DRIVE_TO_LONGGOAL_WITH3 = 800;
+    drive_arcade_ms(-80,0,MS_DRIVE_TO_LONGGOAL_WITH3);
+
+    // <12> 吐
+    valveA.set_value(true);
+    //outfeed_motor.move_voltage(12000);
+    pros::delay(2000);
+    outfeed_motor.move_voltage(0);
+
+    // --- 收尾：停住 ---
+    chassis.arcade(0, 0, true);
+    
+}
+void Experimental_WithGOING() {
+     // <1> 转到三连块
+    drive_arcade_ms(60, 0, 670);
+
+    if(auto c = find_coord("Center_right_red_block_right")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //Face_Point_Direction(p.x_co,p.y_co);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Center_right_red_block_right!");}
+
+    drive_arcade_ms(-127, 0, 300);
+        pros::delay(700);
+
+    // <2> 边慢走边 intake，吃三连块
+    valveB.set_value(false);
+    //intake_motor.move_voltage(-12000);
+
+    //intake_motor.move_voltage(0);
+
+    // <3> 转到lower goal
+    if(auto c = find_coord("LowerGoal_red_end")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //Face_Point_Direction(p.x_co,p.y_co);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.9);
+    }else{pros::lcd::print(1,"Can not find Coordinate of LowerGoal_red_end");}
+    //Turn_Relative(85);
+    // <4> 直走
+
+    // <5> 吐块: 卡时间控制吐 1-2 块
+    //intake_motor.move_voltage(12000);
+    //pros::delay(2850);
+    //intake_motor.move_voltage(0);
+    pros::delay(200);
+
+    //drive_arcade_ms(-100, 0, 100);
+
+    /*
+    outfeed_motor.move_voltage(12000);
+    pros::delay(2850);
+    outfeed_motor.move_voltage(0);
+    pros::delay(200);
+    */
+
+    // <6> 无需转向直接直走到spac point
+
+    if(auto c = find_coord("Left_bottom_SpecPoint")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        drive_arcade_ms(-127, 0, 300);
+        pros::delay(700);
+        //Face_Point_Direction(p.x_co,p.y_co);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.9,FaceMode::BACK_TO_TARGET);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Left_bottom_SpecPoint!");}
+
+
+
+    // <7> 转到Long goal
+    
+    if(auto c = find_coord("Right_LongGoal_red_end")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //Face_Point_Direction(p.x_co,p.y_co);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.95);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Right_LongGoal_red_end!");}
+
+    //Turn_Relative(115);
+    //valveA.set_value(true);
+
+    pros::delay(200);
+
+    // <8> 直走对准
+    
+    if(auto c = find_coord("Red_right_loader")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //Face_Point_Direction(p.x_co,p.y_co);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.95);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Red_right_loader!");}
+
+    valveB.set_value(true);
+    pros::delay(200);
+
+    // <9> 吐
+    //outfeed_motor.move_voltage(12000);
+    pros::delay(1200);
+    outfeed_motor.move_voltage(0);
+
+    // <10> 去loader(无需转向)
+    
+    //intake_motor.move_voltage(-12000);
+    
+    if(auto c = find_coord("Right_LongGoal_red_end")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //Face_Point_Direction(p.x_co,p.y_co);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.95);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Right_LongGoal_red_end!");}
+
+
+    pros::delay(2750);
+    intake_motor.move_voltage(0);
+    pros::delay(500);
+
+    // <12> 吐
+    valveA.set_value(true);
+    //outfeed_motor.move_voltage(12000);
+    pros::delay(2000);
+    outfeed_motor.move_voltage(0);
+    
+    // --- 收尾：停住 ---
+    chassis.arcade(0, 0, true);
+
+}
+void Experimental() {
+
+    drive.start();
+    io.start();
+    
+    if(auto c = find_coord("Right_LongGoal_red_end")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        //qIO.push(CmdIntake{3});
+        //qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+    }else{pros::lcd::print(1,"Can not find Coordinate of Right_LongGoal_red_end!");}
+    
+
+    //<1>
+    if(auto c = find_coord("Center_right_red_block_right")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        //qIO.push(CmdIntake{3});
+        
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+        runIntakeForMs(600);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Center_right_red_block_right!");}
+    
+    //<2>
+    if(auto c = find_coord("LowerGoal_red_end")){
+        auto p = transform_for_CenterGoal(*c, g_isBlue);
+       //qDrive.push(CmdFaceTargetDirection{(double)p.theta_ro});
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+        //qIO.push(CmdWaitDriveIdle{3000});
+        //qIO.push(CmdOutfeed{1});
+        
+        runOutfeedForMs(300);
+    }else{pros::lcd::print(1,"Can not find Coordinate of LowerGoal_red_end");}
+
+    //<3>
+    if(auto c = find_coord("Left_bottom_SpecPoint")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+    }else{pros::lcd::print(1,"Can not find Coordinate of Left_bottom_SpecPoint");}
+    
+    valveB.set_value(true);
+    //<4>
+    if(auto c = find_coord("Right_LongGoal_red_end")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+        //qIO.push(CmdWaitDriveIdle{2000});
+        //qIO.push(CmdOutfeed{2});
+        
+        runOutfeedForMs(1000);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Right_LongGoal_red_end");}
+
+    //<5>
+    if(auto c = find_coord("Red_right_loader")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        //qIO.push(CmdIntake{3});
+        
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+        runIntakeForMs(750);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Red_right_loader");}
+
+    //<6>
+    valveA.set_value(true);
+    if(auto c = find_coord("Right_LongGoal_red_end")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+        //qIO.push(CmdWaitDriveIdle{3000});
+        //qIO.push(CmdOutfeed{3});
+        
+        runOutfeedForMs(1000);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Right_LongGoal_red_end");}
+    
+}
+
+void autonomous() {
+
+    
+    pros::lcd::print(1, "auto chassis=%p", &chassis);
+
+    /*
+    Plan B: Emergency using
+    */
+    //Emergency();    
+
+    /*
+    Plan A: Best situation:
+    */
+
+    //Normal_Using();
+    Experimental_WithGOING();
+}   
+// + 
+/*
+void autonomous() {
+    // 启动两个工人线程
+    drive.start();
+    io.start();
+
+    // === 示例脚本：先转→边走边吸 ===
+    qDrive.push(CmdTurnTo{90});                // 底盘转到 90°
+    qIO.push(CmdIntake{3});                    // 启动进料：目标 3 块（与行驶并行）
+    qDrive.push(CmdGoTo{24, 8, 2500});         // 前往 (24,8)，总时长 2.5s
+    qDrive.push(CmdTurnTo{0});                 // 到位后再转正
+
+    // …继续分发更多命
+    // qIO.push(CmdOutfeed{2});
+    // qDrive.push(CmdGoTo{30,24,1800});
+
+    // === 收尾：告诉工人线程可以下班 ===
+    qDrive.push(CmdStop{});
+    qIO.push(CmdStop{});
+
+    // 等它们自然退出（简单等就行）
+    uint32_t t0 = pros::millis();
+    while ((!drive.finished() || !io.finished()) && pros::millis()-t0 < 2000) {
+        pros::delay(10);
+    }
+}
+*/
+
+/*
+        //按键:B 切换慢速模式（带防抖）
+        bool b = controller.get_digital(pros::E_CONTROLLER_DIGITAL_Y);
+        if (b && !slowPrev) { // 防止一直按B导致反复触发
+            slow = !slow;
+            controller.rumble(slow ? ".." : "-"); // 振动提示：开=短振，关=长振
+        }
+        slowPrev = b;
+        //按键:A 180度转向
+        if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_A)){
+            double current = chassis.getPose().theta;
+            double targetHeading = current + 180.0;
+            if (targetHeading>=360){ targetHeading -= 360;} // 超限调整
+            chassis.turnToHeading(targetHeading, 2000);
+        }
+
+        const float scale = slow ? 0.30f : 0.85f;
+*/
+
+/*
+    R1: intake 但不吐出
+    R2: intake吐出 
+    L1: 反转下面吐出 
+    L2: 换方向 
+    X: match loader pneumatics
+    Y：pneumatics 换高度
+ */
+void opcontrol() {
+    // controller
+    bool OutFeedHeight          = false;
+    bool MatchLoader            = false;
+    bool driveReversed          = false;
+    bool InputOutputReversed    = true;
+    bool CRAW                   = false;
+    bool CorrdORANgle           = false;
+    valveA.set_value(false);
+    valveB.set_value(false);
+    valveH.set_value(false);
+    auto deadzone = [](int v, int dead_area = 8){return (std::abs(v) < dead_area) ? 0 : v;};    
+    while (true) { // loop to continuously update motors
+        //Key:Y Change outfeed height
+        if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_Y)){
+            OutFeedHeight = !OutFeedHeight;
+            valveA.set_value(OutFeedHeight);
+        }
+        //Key:X match loader
+        if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_X)){
+            MatchLoader = !MatchLoader;
+            valveB.set_value(MatchLoader);
+        }
+        //Key:A Lower the claw used to reach the long goal.
+        if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_A)){
+            CRAW = !CRAW;
+            valveH.set_value(CRAW);
+        }
+        //Key:L2 Base Motor Reverse
+        if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L2)){
+            driveReversed = !driveReversed;
+        }
+        //Key:L1 Reverse the rotation direction of intake and outfeed
+        if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L1)){
+            InputOutputReversed = !InputOutputReversed;
+        }
+        //Key:B Test odometry
+        if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_B)){
+            if (!g_isBlue) {
+                chassis.setPose(Xf_red, Yf_red, 90);
+            } else {
+                chassis.setPose(Xf_blue, Yf_blue, -90);
+            }
+    
+        }
+        
+        if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_RIGHT)){
+            CorrdORANgle = !CorrdORANgle;
+        }
+        
+        
+        auto p = chassis.getPose();
+        if(CorrdORANgle){
+            controller.print(0, 0, "%.2f, %.2f",   p.x,p.y);
+        }else{
+            controller.print(0, 0, "%.2f,%.2f", wrap_deg(p.theta), wrap_deg(p.theta - 90));
+        }
+        //auto Odom_p = OdomTofield(p.x,p.y,p.theta);
+        //controller.print(0, 0, "X:%.2f, Y:%.2f", Odom_p.x, Odom_p.y);
+        //controller.print(0, 0, "%.2f, %.2f       ",   Odom_p.x, Odom_p.y);
+
+
+        const int dir       = driveReversed       ? -1 : 1;
+        const int dir_INOUT = InputOutputReversed ? -1 : 1;
+        // R1 and R2
+        const bool R1=controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1);
+        const bool R2=controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2);
+        if (R1 && !R2) {
+            intake_motor.move_voltage(12000 * dir_INOUT);
+            outfeed_motor.move_voltage(6500 * dir_INOUT);
+        } else if (!R1 && R2) {
+            intake_motor.move_voltage(12000 * dir_INOUT);
+            outfeed_motor.move_voltage(-11500 * dir_INOUT);
+        } else {
+            intake_motor.move_voltage(0);
+            outfeed_motor.move_voltage(0);
+        }
+        int forward = deadzone(controller.get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y));
+        int turning = deadzone(controller.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_X));
+        forward = std::clamp(forward * dir, -127, 127);
+        turning = std::clamp(turning, -127, 127);
+        chassis.arcade(forward,turning);
+        pros::delay(20);
+    }
+        
+}
