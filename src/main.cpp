@@ -1274,7 +1274,7 @@ void Experimental_WithGOING() {
     if(auto c = find_coord("Right_LongGoal_red_end")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.7,0.45,FaceMode::BACK_TO_TARGET);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.7,0.55,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Right_LongGoal_red_end!");}
     
     /*
@@ -1389,12 +1389,12 @@ void Experimental_WithGOING2() {
     drive_arcade_ms(127, 0, 150);
     pros::delay(150);
     drive_arcade_ms(-127, 0, 275);
-    pros::delay(400);
+    pros::delay(200);
 
     intake_motor.move_voltage(0);
     outfeed_motor.move_voltage(0);
     //valveA.set_value(true);
-    pros::delay(100);
+    pros::delay(50);
 
     // <2> Lower Goal
     /*
@@ -1475,10 +1475,19 @@ void Experimental_WithGOING2() {
     outfeed_motor.move_voltage(0);
     intake_motor.move_voltage(0);
     
-    drive_arcade_ms(127, 0, 200);
-    pros::delay(200);
-    drive_arcade_ms(-127, 0, 350);
-    pros::delay(700);
+    drive_arcade_ms(127, 0, 300);
+    valveH.set_value(true);
+    valveB.set_value(false);
+    pros::delay(300);
+    
+    if(auto c = find_coord("Left_Descore_point")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //Face_Point_Direction(p.x_co,p.y_co);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.7,0.45);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Left_LongGoal_red_end!");}
+
+    Face_Target_Direction(0);
+    drive_arcade_ms(127,0,100);
 
     // --- 收尾：停住 ---
     chassis.arcade(0, 0, true);
