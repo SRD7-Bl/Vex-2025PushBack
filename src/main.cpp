@@ -104,7 +104,7 @@ lemlib::Chassis chassis(drivetrain, linearController, angularController, sensors
  */
 
 bool g_isBlue = false;
-bool Isright  = true;
+bool Isright  = false;
 /*
 lemlib::Pose fieldToOdom(double Xf, double Yf, double theta_f_deg) {
     return lemlib::Pose(
@@ -1262,7 +1262,7 @@ void Experimental_WithGOING() {
     if(auto c = find_coord("Red_right_loader")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.85,0.35);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.90,0.55);
     }else{pros::lcd::print(1,"Can not find Coordinate of Red_right_loader!");}
 
     pros::delay(50);
@@ -1379,7 +1379,7 @@ void Experimental_WithGOING2() {
     outfeed_motor.move_voltage(-8000);
     pros::delay(100);
 
-    if(auto c = find_coord("Center_left_red_block_bottom")){
+    if(auto c = find_coord("Center_left_red_block_center")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
         Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45);
@@ -1393,6 +1393,7 @@ void Experimental_WithGOING2() {
 
     intake_motor.move_voltage(0);
     outfeed_motor.move_voltage(0);
+    valveA.set_value(true);
     pros::delay(100);
 
     // <2> Lower Goal
@@ -1403,6 +1404,8 @@ void Experimental_WithGOING2() {
     }else{pros::lcd::print(1,"Can not find Coordinate of UpperGoal_red_end");}
     
     // <3> 吐块: 卡时间控制吐 1-2 块
+    valveA.set_value(false);
+    pros::delay(100);
     intake_motor.move_voltage(-8000);
     outfeed_motor.move_voltage(8000);
     pros::delay(1150);

@@ -29,7 +29,7 @@ extern const Map_Coordinate FIELD_COORDINATE[]{
     {"UnderGoal_left_red_block_right",ComponentType::Block,68.61f,116.97f,NAN},
     {"UnderGoal_left_blue_block_left",ComponentType::Block,71.84f,116.97f,NAN},
     {"Left_bottom_SpecPoint",ComponentType::Landmark,39.44f,30.94f,0.0f}, //39，30.44
-    {"Left_top_SpecPoint",ComponentType::Landmark,39.44f,110.97f,0.0f},
+    {"Left_top_SpecPoint",ComponentType::Landmark,39.44f,108.97f,0.0f},
     {"Right_SidePoint_BlueSide",ComponentType::Landmark,0.0f,0.0f,0.0f},
     {"Left_SidePoint_RedSide",ComponentType::Landmark,0.0f,0.0f,0.0f},
 };
