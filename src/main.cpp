@@ -1379,7 +1379,7 @@ void Experimental_WithGOING2() {
     outfeed_motor.move_voltage(-8000);
     pros::delay(100);
 
-    if(auto c = find_coord("Center_left_red_block_center")){
+    if(auto c = find_coord("Center_left_red_block_right")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
         Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45);
@@ -1388,19 +1388,20 @@ void Experimental_WithGOING2() {
     // 突进吃块
     drive_arcade_ms(127, 0, 150);
     pros::delay(150);
-    drive_arcade_ms(-127, 0, 375);
+    drive_arcade_ms(-127, 0, 275);
     pros::delay(400);
 
     intake_motor.move_voltage(0);
     outfeed_motor.move_voltage(0);
-    valveA.set_value(true);
+    //valveA.set_value(true);
     pros::delay(100);
 
     // <2> Lower Goal
+    /*
     if(auto c = find_coord("UpperGoal_red_end")){
         auto p = transform_for_alliance(*c, g_isBlue);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2050,0.55,0.35,FaceMode::BACK_TO_TARGET);
+        Face_Point_Direction(p.x_co,p.y_co);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,7050,0.55,0.35,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of UpperGoal_red_end");}
     
     // <3> 吐块: 卡时间控制吐 1-2 块
@@ -1412,10 +1413,11 @@ void Experimental_WithGOING2() {
     intake_motor.move_voltage(0);
     outfeed_motor.move_voltage(0);
     pros::delay(100);
+    */
 
     // <4> Back
-    drive_arcade_ms(127, 0, 200);
-    pros::delay(200);
+    //drive_arcade_ms(127, 0, 200);
+    //pros::delay(200);
     valveA.set_value(true);
     valveB.set_value(true);
     pros::delay(50);
@@ -1434,7 +1436,7 @@ void Experimental_WithGOING2() {
         //drive_arcade_ms(-127, 0, 300);
         pros::delay(700);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1700,0.9,0.6);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1700,1.0,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_top_SpecPoint!");}
     
     // <7> 直接到loader
@@ -1447,7 +1449,7 @@ void Experimental_WithGOING2() {
     if(auto c = find_coord("Red_left_loader")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.95,0.5);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2000,0.90,0.60);
     }else{pros::lcd::print(1,"Can not find Coordinate of Red_left_loader!");}
 
     pros::delay(100);
