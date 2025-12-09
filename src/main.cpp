@@ -122,9 +122,11 @@ lemlib::Pose odomToField(double Xo, double Yo, double theta_o) {
 }
 */
 
+/*
 double fieldAngleToOdom(double theta_field) {
     return wrap_deg(theta_field);
 }
+*/
 
 // 场地坐标（你测量的）
 const double Xf_red  = 8.25;
@@ -590,6 +592,10 @@ inline std::pair<int,int> Error_Speed_Coarse_Mapping(double absErrorDeg){ // ret
     return                      {38, 8};
 }
 
+// 机器人的初始角度差又90度，这个方法负责弥补回来
+double fieldAngleToOdom(double theta_field_deg) {
+    return wrap_deg(-theta_field_deg + 90.0);
+}
 void Face_Target_Direction(double dtheta){
 
     if (std::isnan(dtheta)) {
@@ -1206,7 +1212,7 @@ void Experimental_WithGOING() {
     // 突进吃块
     drive_arcade_ms(127, 0, 150);
     pros::delay(150);
-    drive_arcade_ms(-127, 0, 300);
+    drive_arcade_ms(-127, 0, 255);
     pros::delay(400);
 
     intake_motor.move_voltage(0);
@@ -1227,10 +1233,7 @@ void Experimental_WithGOING() {
     pros::delay(100);
 
     // <4> Back
-    drive_arcade_ms(-127, 0, 205);
-    pros::delay(200);
-    valveA.set_value(true);
-    valveB.set_value(true);
+    //drive_arcade_ms(-127, 0, 205);
     pros::delay(100);
 
     /*
@@ -1247,9 +1250,10 @@ void Experimental_WithGOING() {
         //drive_arcade_ms(-127, 0, 300);
         pros::delay(700);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,4700,0.7,0.45);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,4700,0.7,0.45,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_bottom_SpecPoint!");}
-    
+    valveA.set_value(true);
+    valveB.set_value(true);
     pros::delay(550);
 
     // <7> 直接到loader
@@ -1262,7 +1266,7 @@ void Experimental_WithGOING() {
     if(auto c = find_coord("Red_right_loader")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.90,0.55);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.80,0.75);
     }else{pros::lcd::print(1,"Can not find Coordinate of Red_right_loader!");}
 
     pros::delay(50);
@@ -1376,7 +1380,7 @@ void Experimental() {
 void Experimental_WithGOING2() {
     // <1> 三连块
     intake_motor.move_voltage(-12000);
-    outfeed_motor.move_voltage(-8000);
+    outfeed_motor.move_voltage(-9000);
     pros::delay(100);
 
     if(auto c = find_coord("Center_left_red_block_right")){
@@ -1430,7 +1434,8 @@ void Experimental_WithGOING2() {
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_right_red_block_top.");}
     */
     
-    
+    outfeed_motor.move_voltage(-5000);
+    pros::delay(100);
     if(auto c = find_coord("Left_top_SpecPoint")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //drive_arcade_ms(-127, 0, 300);
@@ -1439,6 +1444,7 @@ void Experimental_WithGOING2() {
         Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1700,1.0,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_top_SpecPoint!");}
     
+    pros::delay(300);
     // <7> 直接到loader
     valveA.set_value(true);
     valveB.set_value(true);
@@ -1449,10 +1455,10 @@ void Experimental_WithGOING2() {
     if(auto c = find_coord("Red_left_loader")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2000,0.90,0.60);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2000,0.9,0.85);
     }else{pros::lcd::print(1,"Can not find Coordinate of Red_left_loader!");}
 
-    pros::delay(100);
+    pros::delay(400);
     intake_motor.move_voltage(0);
     outfeed_motor.move_voltage(0);
 
@@ -1476,7 +1482,7 @@ void Experimental_WithGOING2() {
     intake_motor.move_voltage(0);
     
     drive_arcade_ms(127, 0, 300);
-    valveH.set_value(true);
+    //valveH.set_value(true);
     valveB.set_value(false);
     pros::delay(300);
     
@@ -1486,11 +1492,12 @@ void Experimental_WithGOING2() {
         Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.7,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_LongGoal_red_end!");}
 
-    Face_Target_Direction(0);
-    drive_arcade_ms(127,0,100);
-
+    Face_Target_Direction(fieldAngleToOdom(0));
+    drive_arcade_ms(127,0,175);
+    pros::delay(100);
+    drive_arcade_ms(-127,0,175);
     // --- 收尾：停住 ---
-    chassis.arcade(0, 0, true);
+   
 }
 
 /*
