@@ -49,9 +49,9 @@ lemlib::Drivetrain drivetrain(&leftMotors, // left motor group
 );
 
 // lateral motion controller
-lemlib::ControllerSettings linearController(1, // proportional gain (kP)
-                                            1, // integral gain (kI)
-                                            1, // derivative gain (kD)
+lemlib::ControllerSettings linearController(12.5, // proportional gain (kP)
+                                            0, // integral gain (kI)
+                                            30, // derivative gain (kD)
                                             3, // anti windup
                                             1, // small error range, in inches
                                             100, // small error range timeout, in milliseconds
@@ -61,9 +61,9 @@ lemlib::ControllerSettings linearController(1, // proportional gain (kP)
 );
 
 // angular motion controller
-lemlib::ControllerSettings angularController(1, // proportional gain (kP)
-                                             1, // integral gain (kI)
-                                             1, // derivative gain (kD)
+lemlib::ControllerSettings angularController(5.5, // proportional gain (kP)
+                                             0, // integral gain (kI)
+                                             60, // derivative gain (kD)
                                              3, // anti windup
                                              1, // small error range, in degrees
                                              100, // small error range timeout, in milliseconds
@@ -96,7 +96,7 @@ lemlib::ExpoDriveCurve steerCurve(3, // joystick deadband out of 127
 lemlib::Chassis chassis(drivetrain, linearController, angularController, sensors, &throttleCurve, &steerCurve);
 
 
-/**
+/*
  * Runs initialization code. This occurs as soon as the program is started.
  *
  * All other competition modes are blocked by initialize; it is recommended
@@ -944,7 +944,20 @@ void disabled() {}
 /**
  * runs after initialize if the robot is connected to field control
  */
-void competition_initialize() {}
+void competition_initialize() {
+
+    /*
+    pros::lcd::initialize(); // initialize brain screen
+    pros::lcd::print(0, "init, chassis=%p", &chassis);
+
+    horizontalEnc.reset_position();
+    verticalEnc.reset_position();
+
+    chassis.calibrate(); // calibrate sensors   
+    pros::delay(100);
+    chassis.setPose(68.5,23,270);
+    */
+}
 
 // get a path used for pure pursuit
 // this needs to be put outside a function
@@ -1206,13 +1219,13 @@ void Experimental_WithGOING() {
     if(auto c = find_coord("Center_right_red_block_top")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.3,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_right_red_block_top.");}
 
     // 突进吃块
     drive_arcade_ms(127, 0, 150);
     pros::delay(150);
-    drive_arcade_ms(-127, 0, 255);
+    drive_arcade_ms(-127, 0, 465);
     pros::delay(400);
 
     intake_motor.move_voltage(0);
@@ -1223,11 +1236,11 @@ void Experimental_WithGOING() {
     if(auto c = find_coord("LowerGoal_red_end")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2050,0.65,0.45);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2050,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of LowerGoal_red_end");}
     
     // <3> 吐块: 卡时间控制吐 1-2 块
-    intake_motor.move_voltage(8000);
+    intake_motor.move_voltage(12000);
     pros::delay(1150);
     intake_motor.move_voltage(0);
     pros::delay(100);
@@ -1250,7 +1263,7 @@ void Experimental_WithGOING() {
         //drive_arcade_ms(-127, 0, 300);
         pros::delay(700);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,4700,0.7,0.45,FaceMode::BACK_TO_TARGET);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,4700,0.6,0.45,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_bottom_SpecPoint!");}
     valveA.set_value(true);
     valveB.set_value(true);
@@ -1266,7 +1279,7 @@ void Experimental_WithGOING() {
     if(auto c = find_coord("Red_right_loader")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.80,0.75);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.75);
     }else{pros::lcd::print(1,"Can not find Coordinate of Red_right_loader!");}
 
     pros::delay(50);
@@ -1278,7 +1291,7 @@ void Experimental_WithGOING() {
     if(auto c = find_coord("Right_LongGoal_red_end")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.7,0.55,FaceMode::BACK_TO_TARGET);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.55,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Right_LongGoal_red_end!");}
     
     /*
@@ -1386,13 +1399,15 @@ void Experimental_WithGOING2() {
     if(auto c = find_coord("Center_left_red_block_right")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.35,0.55);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     // 突进吃块
+    
     drive_arcade_ms(127, 0, 150);
     pros::delay(150);
-    drive_arcade_ms(-127, 0, 330);
+    drive_arcade_ms(-127, 0, 350);
+    
     pros::delay(200);
 
     intake_motor.move_voltage(0);
@@ -1422,7 +1437,6 @@ void Experimental_WithGOING2() {
     // <4> Back
     //drive_arcade_ms(127, 0, 200);
     //pros::delay(200);
-    valveA.set_value(true);
     valveB.set_value(true);
     pros::delay(50);
 
@@ -1442,12 +1456,13 @@ void Experimental_WithGOING2() {
         //drive_arcade_ms(-127, 0, 300);
         pros::delay(700);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1700,0.8,0.65);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1700,0.5,0.65);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_top_SpecPoint!");}
     
     pros::delay(300);
     Face_Target_Direction(fieldAngleToOdom(180));
     pros::delay(100);
+
     // <7> 直接到loader
     valveA.set_value(true);
     valveB.set_value(true);
@@ -1458,29 +1473,30 @@ void Experimental_WithGOING2() {
     if(auto c = find_coord("Red_left_loader")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2000,0.9,0.7);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2000,0.4,0.3);
     }else{pros::lcd::print(1,"Can not find Coordinate of Red_left_loader!");}
 
-    pros::delay(400);
+    pros::delay(1500);
     intake_motor.move_voltage(0);
     outfeed_motor.move_voltage(0);
 
+    //Face_Target_Direction(fieldAngleToOdom(0));
     // <8> 去long goal
     
     if(auto c = find_coord("Left_LongGoal_red_end")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.7,0.45,FaceMode::BACK_TO_TARGET);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.35,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_LongGoal_red_end!");}
     
     /*
     drive_arcade_ms(-127,0,450);
     pros::delay(1000);
     */
-   
+    valveA.set_value(true);
     outfeed_motor.move_voltage(11500);
     intake_motor.move_voltage(-12000);
-    pros::delay(2200);
+    pros::delay(2500);
     outfeed_motor.move_voltage(0);
     intake_motor.move_voltage(0);
     
@@ -1489,19 +1505,19 @@ void Experimental_WithGOING2() {
     valveB.set_value(false);
     pros::delay(300);
     
-    /*
+    
     if(auto c = find_coord("Left_Descore_point")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.7,0.45);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_LongGoal_red_end!");}
 
     Face_Target_Direction(fieldAngleToOdom(0));
     drive_arcade_ms(127,0,175);
-    pros::delay(100);
-    drive_arcade_ms(-127,0,175);
+    pros::delay(300);
+    drive_arcade_ms(-127,0,50);
     // --- 收尾：停住 ---
-    */
+    
 }
 
 /*
@@ -1532,180 +1548,26 @@ void OutFeed_block(std::string Command = "Start", float rate = 1.0f){
         pros::delay(100);
     }
 }
-
+void PID_test(){
+    
+    Face_Target_Direction(fieldAngleToOdom(180));
+    pros::delay(450);
+}
 void SKILL(){
-    // <1> 三连块
-    intake_motor.move_voltage(-12000);
-    outfeed_motor.move_voltage(-9000);
-    pros::delay(100);
-
-    if(auto c = find_coord("Center_left_red_block_right")){
-        auto p = transform_for_alliance(*c, g_isBlue);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45);
-    }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
-
-    // 突进吃块
-    drive_arcade_ms(127, 0, 150);
-    pros::delay(150);
-    drive_arcade_ms(-127, 0, 330);
-    pros::delay(200);
-
-    intake_motor.move_voltage(0);
-    outfeed_motor.move_voltage(0);
-    //valveA.set_value(true);
-    pros::delay(50);
-
-    // <4> Back
-    //drive_arcade_ms(127, 0, 200);
-    //pros::delay(200);
-    valveA.set_value(true);
-    valveB.set_value(true);
-    pros::delay(50);
-
-    outfeed_motor.move_voltage(-5000);
-    pros::delay(100);
-
-    if(auto c = find_coord("Left_top_SpecPoint")){
-        auto p = transform_for_alliance(*c, g_isBlue);
-        //drive_arcade_ms(-127, 0, 300);
-        pros::delay(700);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1700,0.8,0.65);
-    }else{pros::lcd::print(1,"Can not find Coordinate of Left_top_SpecPoint!");}
     
-    pros::delay(300);
-    Face_Target_Direction(fieldAngleToOdom(180));
-    pros::delay(100);
-    // <7> 直接到loader
-    valveA.set_value(true);
-    valveB.set_value(true);
-    intake_motor.move_voltage(-11000);
-    outfeed_motor.move_voltage(-8000);
-    pros::delay(100);
 
-    if(auto c = find_coord("Red_left_loader")){
-        auto p = transform_for_alliance(*c, g_isBlue);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2000,0.9,0.7);
-    }else{pros::lcd::print(1,"Can not find Coordinate of Red_left_loader!");}
-
-    pros::delay(400);
-    intake_motor.move_voltage(0);
-    outfeed_motor.move_voltage(0);
-
-    // <8> 去long goal
     
-    if(auto c = find_coord("Left_LongGoal_red_end")){
-        auto p = transform_for_alliance(*c, g_isBlue);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.7,0.45,FaceMode::BACK_TO_TARGET);
-    }else{pros::lcd::print(1,"Can not find Coordinate of Left_LongGoal_red_end!");}
-    
-    /*
-    drive_arcade_ms(-127,0,450);
-    pros::delay(1000);
-    */
-   
-    outfeed_motor.move_voltage(11500);
-    intake_motor.move_voltage(-12000);
-    pros::delay(2200);
-    outfeed_motor.move_voltage(0);
-    intake_motor.move_voltage(0);
-    
-    drive_arcade_ms(127, 0, 150);
-    //valveH.set_value(true);
-    valveB.set_value(false);
-    pros::delay(300);
-    
-    intake_motor.move_voltage(-12000);
-    outfeed_motor.move_voltage(-9000);
-    pros::delay(100);
-
-    if(auto c = find_coord("Center_right_red_block_top")){
-        auto p = transform_for_alliance(*c, g_isBlue);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,5500,0.8,0.65);
-    }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
-
-    // 突进吃块
-    drive_arcade_ms(127, 0, 150);
-    pros::delay(150);
-    drive_arcade_ms(-127, 0, 330);
-    pros::delay(200);
-
-    intake_motor.move_voltage(0);
-    outfeed_motor.move_voltage(0);
-    //valveA.set_value(true);
-    pros::delay(50);
-
-    valveA.set_value(true);
-    valveB.set_value(true);
-    pros::delay(50);
-
-    outfeed_motor.move_voltage(-5000);
-    pros::delay(100);
-
-    if(auto c = find_coord("Left_bottom_SpecPoint")){
-        auto p = transform_for_alliance(*c, g_isBlue);
-        //drive_arcade_ms(-127, 0, 300);
-        pros::delay(700);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1700,0.8,0.65);
-    }else{pros::lcd::print(1,"Can not find Coordinate of Left_top_SpecPoint!");}
-    
-    pros::delay(300);
-    Face_Target_Direction(fieldAngleToOdom(180));
-    pros::delay(100);
-    // <7> 直接到loader
-    valveA.set_value(true);
-    valveB.set_value(true);
-    intake_motor.move_voltage(-11000);
-    outfeed_motor.move_voltage(-8000);
-    pros::delay(100);
-
-    if(auto c = find_coord("Red_right_loader")){
-        auto p = transform_for_alliance(*c, g_isBlue);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2000,0.9,0.7);
-    }else{pros::lcd::print(1,"Can not find Coordinate of Red_left_loader!");}
-
-    pros::delay(400);
-    intake_motor.move_voltage(0);
-    outfeed_motor.move_voltage(0);
-
-    // <8> 去long goal
-    
-    if(auto c = find_coord("Right_LongGoal_red_end")){
-        auto p = transform_for_alliance(*c, g_isBlue);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.7,0.45,FaceMode::BACK_TO_TARGET);
-    }else{pros::lcd::print(1,"Can not find Coordinate of Left_LongGoal_red_end!");}
-    
-    /*
-    drive_arcade_ms(-127,0,450);
-    pros::delay(1000);
-    */
-   
-    outfeed_motor.move_voltage(11500);
-    intake_motor.move_voltage(-12000);
-    pros::delay(2200);
-    outfeed_motor.move_voltage(0);
-    intake_motor.move_voltage(0);
-
-
-    /*
     //Right half
     if(auto p = find_coord("Left_bottom_SpecPoint")){
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     Intake_block();
 
     if(auto p = find_coord("Red_right_loader")){
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
     pros::delay(750);
 
@@ -1713,25 +1575,25 @@ void SKILL(){
 
     if(auto p = find_coord("Center_right_red_block_center")){
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     if(auto p_raw = find_coord("Center_left_red_block_center")){
         auto p = transform_for_alliance(*p_raw, true);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     if(auto p_raw = find_coord("Left_top_SpecPoint")){
         auto p = transform_for_alliance(*p_raw, true);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45,FaceMode::BACK_TO_TARGET);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.45,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     if(auto p_raw = find_coord("Left_LongGoal_red_end")){
         auto p = transform_for_alliance(*p_raw, true);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45,FaceMode::BACK_TO_TARGET);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.45,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     OutFeed_block();
@@ -1744,14 +1606,14 @@ void SKILL(){
     if(auto p_raw = find_coord("Red_left_loader")){
         auto p = transform_for_alliance(*p_raw, true);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
     pros::delay(750);
 
     if(auto p_raw = find_coord("Left_LongGoal_red_end")){
         auto p = transform_for_alliance(*p_raw, true);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45,FaceMode::BACK_TO_TARGET);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.45,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     Intake_block("Stop");
@@ -1763,10 +1625,11 @@ void SKILL(){
     drive_arcade_ms(127,0,150);
     pros::delay(100);
 
+    /*
     if(auto p = find_coord("Right_SidePoint_BlueSide")){
         //auto p = transform_for_alliance(*p_raw, true);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     Intake_block();
@@ -1774,17 +1637,18 @@ void SKILL(){
     if(auto p_raw = find_coord("Parking_blue_block_left4")){
         auto p = transform_for_alliance(*p_raw, true);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     Intake_block("Stop");
+    */
 
     //left half
 
     if(auto p_raw = find_coord("Left_bottom_SpecPoint")){
         auto p = transform_for_alliance(*p_raw, true);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45,FaceMode::BACK_TO_TARGET);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.45,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     Intake_block();
@@ -1792,7 +1656,7 @@ void SKILL(){
     if(auto p_raw = find_coord("Red_right_loader")){
         auto p = transform_for_alliance(*p_raw, true);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     Intake_block("Stop");
@@ -1800,7 +1664,7 @@ void SKILL(){
     if(auto p_raw = find_coord("Right_LongGoal_red_end")){
         auto p = transform_for_alliance(*p_raw, true);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45,FaceMode::BACK_TO_TARGET);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.45,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     OutFeed_block();
@@ -1813,40 +1677,42 @@ void SKILL(){
     if(auto p_raw = find_coord("Center_right_red_block_center")){
         auto p = transform_for_alliance(*p_raw, true);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     if(auto p = find_coord("Center_left_red_block_center")){
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     Intake_block();
     if(auto p = find_coord("Red_left_loader")){
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
     pros::delay(750);
     Intake_block("Stop");
 
     if(auto p = find_coord("Left_LongGoal_red_end")){
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.8,0.45,FaceMode::BACK_TO_TARGET);
+        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.5,0.45,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     OutFeed_block();
     pros::delay(1750);
     OutFeed_block("Stop");
 
+    //
+    /*
     if(auto p = find_coord("Left_SidePoint_RedSide")){
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     Intake_block();
     if(auto p = find_coord("Parking_blue_block_left4")){
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.8,0.45);
+        Goto_with_Auxiliary_NODE(p->x_co,p->y_co,2500,0.5,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
     Intake_block("Stop");
     */
@@ -1856,7 +1722,9 @@ void autonomous() {
 
     
     pros::lcd::print(1, "auto chassis=%p", &chassis);
-    SKILL();
+
+    //PID_test();
+    //SKILL();
     /*
     Plan B: Emergency using
     */
@@ -1867,13 +1735,14 @@ void autonomous() {
     */
 
     //Normal_Using();
-    /*
+    
     if(Isright){
         Experimental_WithGOING();
     } else{
         Experimental_WithGOING2();
     }
-    */
+        
+    
 }   
 // + 
 /*
