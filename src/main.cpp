@@ -49,9 +49,10 @@ lemlib::Drivetrain drivetrain(&leftMotors, // left motor group
 );
 
 // lateral motion controller
-lemlib::ControllerSettings linearController(12.5, // proportional gain (kP)
+//12.5 9 30
+lemlib::ControllerSettings linearController(1, // proportional gain (kP)
                                             0, // integral gain (kI)
-                                            30, // derivative gain (kD)
+                                            0, // derivative gain (kD)
                                             3, // anti windup
                                             1, // small error range, in inches
                                             100, // small error range timeout, in milliseconds
@@ -61,6 +62,7 @@ lemlib::ControllerSettings linearController(12.5, // proportional gain (kP)
 );
 
 // angular motion controller
+//5.5 0 60
 lemlib::ControllerSettings angularController(5.5, // proportional gain (kP)
                                              0, // integral gain (kI)
                                              60, // derivative gain (kD)
@@ -1399,16 +1401,16 @@ void Experimental_WithGOING2() {
     if(auto c = find_coord("Center_left_red_block_right")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.35,0.55);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.8,0.55);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     // 突进吃块
     
-    drive_arcade_ms(127, 0, 150);
+    drive_arcade_ms(127, 0, 50);
     pros::delay(150);
-    drive_arcade_ms(-127, 0, 350);
+    drive_arcade_ms(-127, 0, 250);
     
-    pros::delay(200);
+    pros::delay(100);
 
     intake_motor.move_voltage(0);
     outfeed_motor.move_voltage(0);
@@ -1438,7 +1440,6 @@ void Experimental_WithGOING2() {
     //drive_arcade_ms(127, 0, 200);
     //pros::delay(200);
     valveB.set_value(true);
-    pros::delay(50);
 
     /*
     if(auto c = find_coord("Center_right_red_block_top")){
@@ -1456,11 +1457,10 @@ void Experimental_WithGOING2() {
         //drive_arcade_ms(-127, 0, 300);
         pros::delay(700);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1700,0.5,0.65);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1700,0.7,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_top_SpecPoint!");}
     
-    pros::delay(300);
-    Face_Target_Direction(fieldAngleToOdom(180));
+    //Face_Target_Direction(fieldAngleToOdom(180));
     pros::delay(100);
 
     // <7> 直接到loader
@@ -1473,30 +1473,43 @@ void Experimental_WithGOING2() {
     if(auto c = find_coord("Red_left_loader")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2000,0.4,0.3);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2000,0.7,0.4);
     }else{pros::lcd::print(1,"Can not find Coordinate of Red_left_loader!");}
 
-    pros::delay(1500);
+     
+    pros::delay(1000);
+    Face_Target_Direction(fieldAngleToOdom(180));
+    pros::delay(100);
     intake_motor.move_voltage(0);
     outfeed_motor.move_voltage(0);
 
     //Face_Target_Direction(fieldAngleToOdom(0));
     // <8> 去long goal
     
+    /*
     if(auto c = find_coord("Left_LongGoal_red_end")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.35,FaceMode::BACK_TO_TARGET);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.5,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_LongGoal_red_end!");}
-    
-    /*
-    drive_arcade_ms(-127,0,450);
-    pros::delay(1000);
     */
+    
+    Face_Target_Direction(fieldAngleToOdom(180));
+    pros::delay(100);
+
+    drive_arcade_ms(-127,0,250);
+    pros::delay(400);
+
+    Face_Target_Direction(fieldAngleToOdom(180));
+    pros::delay(100);
+
+    drive_arcade_ms(-127,0,200);
+    pros::delay(400);
+    
     valveA.set_value(true);
     outfeed_motor.move_voltage(11500);
     intake_motor.move_voltage(-12000);
-    pros::delay(2500);
+    pros::delay(1500);
     outfeed_motor.move_voltage(0);
     intake_motor.move_voltage(0);
     
@@ -1509,7 +1522,7 @@ void Experimental_WithGOING2() {
     if(auto c = find_coord("Left_Descore_point")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.45);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_LongGoal_red_end!");}
 
     Face_Target_Direction(fieldAngleToOdom(0));
@@ -1552,6 +1565,20 @@ void PID_test(){
     
     Face_Target_Direction(fieldAngleToOdom(180));
     pros::delay(450);
+}
+void Moving_test(){
+    drive_arcade_ms(-127,0,100);
+    pros::delay(800);
+    Face_Target_Direction(fieldAngleToOdom(90));
+    drive_arcade_ms(-127,0,100);
+    pros::delay(800);
+    Face_Target_Direction(fieldAngleToOdom(180));
+    drive_arcade_ms(-127,0,100);
+    pros::delay(800);
+    Face_Target_Direction(fieldAngleToOdom(270));
+    drive_arcade_ms(-127,0,100);
+    pros::delay(800);
+    Face_Target_Direction(fieldAngleToOdom(0));
 }
 void SKILL(){
     
@@ -1735,6 +1762,8 @@ void autonomous() {
     */
 
     //Normal_Using();
+    //Moving_test();
+    
     
     if(Isright){
         Experimental_WithGOING();
