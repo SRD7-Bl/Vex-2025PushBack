@@ -106,7 +106,7 @@ lemlib::Chassis chassis(drivetrain, linearController, angularController, sensors
  */
 
 bool g_isBlue = false;
-bool Isright  = false;
+bool Isright  = true;
 /*
 lemlib::Pose fieldToOdom(double Xf, double Yf, double theta_f_deg) {
     return lemlib::Pose(
@@ -1477,7 +1477,7 @@ void Experimental_WithGOING2() {
     }else{pros::lcd::print(1,"Can not find Coordinate of Red_left_loader!");}
 
      
-    pros::delay(1000);
+    //pros::delay(800);
     Face_Target_Direction(fieldAngleToOdom(180));
     pros::delay(100);
     intake_motor.move_voltage(0);
@@ -1497,19 +1497,31 @@ void Experimental_WithGOING2() {
     Face_Target_Direction(fieldAngleToOdom(180));
     pros::delay(100);
 
-    drive_arcade_ms(-127,0,250);
-    pros::delay(400);
+    drive_arcade_ms(-127,0,50);
+    pros::delay(100);
 
     Face_Target_Direction(fieldAngleToOdom(180));
     pros::delay(100);
 
-    drive_arcade_ms(-127,0,200);
-    pros::delay(400);
+    drive_arcade_ms(-127,0,50);
+    pros::delay(100);
+
+    Face_Target_Direction(fieldAngleToOdom(180));
+    pros::delay(100);
+
+    drive_arcade_ms(-127,0,50);
+    pros::delay(100);
+
+    Face_Target_Direction(fieldAngleToOdom(180));
+    pros::delay(100);
+
+    drive_arcade_ms(-127,0,400);
+    pros::delay(600);
     
     valveA.set_value(true);
-    outfeed_motor.move_voltage(11500);
-    intake_motor.move_voltage(-12000);
-    pros::delay(1500);
+    outfeed_motor.move_voltage(10500);
+    intake_motor.move_voltage(-10000);
+    pros::delay(1800);
     outfeed_motor.move_voltage(0);
     intake_motor.move_voltage(0);
     
@@ -1900,6 +1912,7 @@ void opcontrol() {
         int turning = deadzone(controller.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_X));
         forward = std::clamp(forward * dir, -127, 127);
         turning = std::clamp(turning, -127, 127);
+        if(turning) forward *= 0.5;
         chassis.arcade(forward,turning);
         pros::delay(20);
     }
