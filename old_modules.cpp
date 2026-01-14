@@ -106,7 +106,29 @@ lemlib::Chassis chassis(drivetrain, linearController, angularController, sensors
  */
 
 bool g_isBlue = false;
-bool Isright  = false;
+bool Isright  = true;
+/*
+lemlib::Pose fieldToOdom(double Xf, double Yf, double theta_f_deg) {
+    return lemlib::Pose(
+        Yf,  
+        140.41 - Xf,  
+        std::isnan(theta_f_deg) ? NAN : wrap_deg(theta_f_deg)
+    );
+}
+lemlib::Pose odomToField(double Xo, double Yo, double theta_o) {
+    return lemlib::Pose(
+        140.41 - Yo,
+        Xo,
+        std::isnan(theta_o) ? NAN : wrap_deg(theta_o)
+    );
+}
+*/
+
+/*
+double fieldAngleToOdom(double theta_field) {
+    return wrap_deg(theta_field);
+}
+*/
 
 // 场地坐标（你测量的）
 const double Xf_red  = 8.25;
@@ -146,11 +168,253 @@ void initialize() {
 
 }
 
+const float VMIN = 0.1f;
+const float VMAX = 0.75f;
+const int DSTOP = 350; //最低航行速度阀值(单位mm)
+const int R=400; //减速半径(单位mm)
+const float DECELERATION = 1.25f; // deceleration控制减速效果(0,2之间)
+
+//M4
+/*
+double M4_Distance_Angle_Calculation(double xt_coord=0.0,double yt_coord=0.0,float thetat_coord=NAN,char mode = 'd'){  // in inches
+    //mode control mode, d is calculated distance, t is calculated angle. 
+    //Both distance and angle are calculated using track center as the base point of the robot
+    lemlib::Pose Odom_p = chassis.getPose(); //x,y coordinates in inches , odom coord.
+    //auto Odom_p = fieldToOdom(p.x,p.y,p.theta);
+
+    const double xb = Odom_p.x;
+    const double yb = Odom_p.y;
+    const double thetab = Odom_p.theta;
+
+    auto tgt = fieldToOdom(xt_coord,yt_coord,thetat_coord);
+    double xt = tgt.x;
+    double yt = tgt.y;
+    double thetat = tgt.theta;
+
+    if(mode == 'd'){
+        return std::hypot(xt-xb,yt-yb);             
+    } else if(mode == 't'){
+        if(std::isnan(thetat)){ //Target without specific angle(block)
+            const double dx = xt - xb;
+            const double dy = yt - yb;
+
+            if(std::abs(dx) < 1e-6 && std::abs(dy) < 1e-6) return 0.0;
+
+            double phi = std::atan2(dy,dx) * 180.0 / M_PI; //Absolute direction angle(in degree)
+            return wrap_deg(phi - thetab);
+        }else{ //Target with specifc angle(loader,goal etc.)
+            return wrap_deg(static_cast<double>(thetat) - thetab);
+        }
+    }
+    return 0.0;
+}
+*/
+//M1
+/*
+double M1_Distance_Speed_Maping(double xt=0.0,double yt=0.0){
+    double d=M4_Distance_Angle_Calculation(xt,yt,NAN,'d'); //Calculate distance (in inches)
+    d*=25.4; //Convert inches to millimeters 
+    double speed = VMIN+(VMAX-VMIN)*std::pow(std::clamp((std::max(0.0,d-DSTOP)/R),0.0,1.0),DECELERATION);
+    return speed;
+} 
+*/
+
+/*
+------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------这些数据需要测量和调整!--------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
+const int Tenter_feed   =  350;   // Distance Sensor detects block enter/exit the distance sensor view threshold (unit: mm)
+const int Texit_feed    =  500;   // Set Tenter < Texit A hysteresis is formed, creating a buffer zone to prevent block jitter from causing multiple counts or missed counts.
+const int Tmax_feed     =  900;  // Distance sensor Longest/shortest allowed occlusion time (unit: ms)
+const int Tmin_feed     =  90; 
+const int Tcool_min     =  120;   // minimum time for cooldown state (unit: ms)
+const int Tafter_count  =  100;   // minimum time for success counting (unit: ms)
+
+const int Tbounce_enter = 20; //Threshold for double bounce(unit: ms) 
+const int Tbounce_exit  = 30; //This provides a double layer of protection(With the hystersis of Tenter < Texit)
+const int TMAX_intake = 6000;        //maximum time for the module
+
+const float alpha_ema = 0.3;  //Filtering constant, the larger the value the more aggressive, the smaller the more conservative.
+
+// The voltage setting for intake_motor for different state
+constexpr int MOTORVOLTAGE_IDLE = 8000; 
+constexpr int MOTORVOLTAGE_PULL = 11000;
+constexpr int MOTORVOLTAGE_STOP = 0;
+constexpr int MOTORVOLTAGE_JAM  = -9000;
+
+constexpr int TIDLE_ABORT_MS = 2500; //Maximum Waiting time.(unit: ms)
+
+/*
+------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------以上数据需要测量和调整!--------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
+
+
+
+struct Feed_Result{ // The struct used for represent the result of the module
+    int count = 0;
+    bool JAM = false; 
+    bool IDLE_TIMEOUT = false;
+};
+
+struct MotorGuard { // The motor guard for Making the motor slow down and brake immediately when it is destroyed.
+    pros::Motor& m;
+    explicit MotorGuard(pros::Motor& m_): m(m_) {}
+    ~MotorGuard(){ m.move_voltage(MOTORVOLTAGE_STOP); } 
+};
+
+Feed_Result M5_Feed_Quantity_Monitoring(int Target){ 
+
+    MotorGuard guard(intake_motor);
+    intake_motor.move_voltage(MOTORVOLTAGE_IDLE);
+    
+    enum State_Feed{Waiting,Starting,Locking,CoolDown}; // State System
+
+    int    time_enter      = 0;                 // The time when the block enter the robot
+    int    cooldown_enter  = 0;                 // The time when the cooldown starts.
+    int    Tmode_start     = pros::millis();    // The time when the module starts
+    int    last_count_time = 0;                 // The time of tlast count
+    int    time            = 0;                 // The time now
+
+    double Dist_prev       = intake_distance_sensor.get();  // The distance used for Filtering.
+    double dist            = 0.0;               // The distance from distance_sensor
+
+    int last_activity = pros::millis(); 
+
+    State_Feed Current_state=Waiting;      
+
+    Feed_Result res{};
+
+    // The filtering function is used to prevent misjudgments caused by sudden fluctuations in the value of the distance variable.
+    auto ema = [](double previous, double current){return alpha_ema*current + (1.0-alpha_ema)*previous;}; 
+
+    while(pros::millis() - Tmode_start < TMAX_intake){
+        dist=intake_distance_sensor.get();
+        dist = ema(Dist_prev, dist);
+        Dist_prev = dist;
+
+        int time=pros::millis();
+
+        const bool has_activity = (Current_state != Waiting) || (dist < Tenter_feed);
+        if (has_activity) last_activity = time;
+        if ((time - last_activity) >= TIDLE_ABORT_MS){
+            res.IDLE_TIMEOUT = true;
+            break;
+        }
+
+        if(Current_state != CoolDown && time_enter){ // JAM
+            const int held_time = time - time_enter;
+            if(dist < Tenter_feed && held_time >= Tmax_feed){ 
+                res.JAM = true;
+                intake_motor.move_voltage(MOTORVOLTAGE_JAM); // The motor reverses, attempting to rotate the block out to release JAM.
+                pros::delay(200);
+                intake_motor.move_voltage(MOTORVOLTAGE_STOP);
+                break;
+            }
+        }
+
+        switch (Current_state){
+            case Waiting:{
+
+                intake_motor.move_voltage(MOTORVOLTAGE_IDLE);
+                static int Tblock_first_come = 0;
+                if(dist < Tenter_feed){ // Waiting for the block
+                    if(!Tblock_first_come) {Tblock_first_come = time;}
+                    if(time - Tblock_first_come >= Tbounce_enter){
+                        Current_state = Starting;
+                        time_enter = time;
+                    }
+                } else{
+                    Tblock_first_come = 0;
+
+            }break;     
+            case Starting:{
+
+                intake_motor.move_voltage(MOTORVOLTAGE_IDLE);
+                const int held_time = time - time_enter;
+                static int Tblock_exit = 0;
+
+                // highest priority: use Time and Rotation value to enter the locking state.
+                if(held_time >= Tmin_feed){
+                    Current_state = Locking;
+                    Tblock_exit = 0;
+                    break;
+                }
+
+                if(dist >= Texit_feed){ // if the block leave early
+                    if(!Tblock_exit) {Tblock_exit = time;}
+                    if(time - Tblock_exit >= Tbounce_exit){
+                        Current_state = Waiting; // back to starting point
+                        time_enter = 0;
+                        Tblock_exit = 0;
+                    }
+                } else {
+                    Tblock_exit = 0;
+                }
+
+            }break;
+            case Locking:{
+
+                intake_motor.move_voltage(MOTORVOLTAGE_PULL);
+                if(dist > Texit_feed){
+                    res.count++;
+                    Current_state = CoolDown;
+                    cooldown_enter = time;
+                    last_count_time = time;
+                }
+                
+            } break;
+            case CoolDown:{
+
+                intake_motor.move_voltage(MOTORVOLTAGE_IDLE);
+                if((time - cooldown_enter) >= Tcool_min){
+                    Current_state = Waiting;
+                }
+
+            }break;
+         }
+        if(res.count >= Target && intake_distance_sensor.get() > Texit_feed && (time - last_count_time) >= Tafter_count) break;
+        pros::delay(15);
+        }
+    }
+    return res;
+}
+/*
+------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------这些数据需要测量和调整!--------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
+
+const int Tenter_outfeed         =  350;  // Distance Sensor detects block enter/exit the distance sensor view threshold (unit: mm)
+const int Texit_outfeed          =  500;
+const int Tmax_outfeed           =  1500; // Distance sensor Longest/shortest allowed occlusion time (unit: ms)
+const int Tmin_outfeed           =  150; 
+const int TMAX_outfeed           =  6000; //maximum time for the module(unit: ms)
+const int Tcool_min_outfeed      =  120;  // minimum time for shooting state (unit: ms)
+const int Tbounce_enter_outfeed  =  0;    //Threshold for double bounce(unit: ms) 
+const int Tbounce_exit_outfeed   =  0;
+
+const int gap_cool =  0; //Interval between pulse(mm)
+const int gap_off_enter  =  0; //Disconnect Value(mm)
+const int gap_off_exit  =  0;
+
+const uint32_t t_off = 0; //Outfeed Value
+
+constexpr int TIDLE_ABORT_MS_OUTFEED = 2500; //Maximum Waiting time.(unit: ms)
+
+
+/*
+------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------以上数据需要测量和调整!--------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
 const int INTAKE_SPEED = 1000;
 const int OUTF_EED_SPEED = 1000;
 void runIntakeForMs(int ms) {
     // TODO: 换成你真实的电机对象/函数
-    intake_motor.move(11000);  // 或 move_voltage(...)
+    intake_motor.move(MOTORVOLTAGE_PULL);  // 或 move_voltage(...)
     pros::delay(ms);
     intake_motor.move(0);      // 停
 }
@@ -158,11 +422,164 @@ void runIntakeForMs(int ms) {
 // 简单版：让 outfeed 转 ms 毫秒，然后停
 void runOutfeedForMs(int ms) {
     // TODO: 换成你真实的电机对象/函数
-    outfeed_motor.move(11000);
+    outfeed_motor.move(MOTORVOLTAGE_PULL);
     pros::delay(ms);
     outfeed_motor.move(0);
 }
 
+Feed_Result M6_OUTFeed_Quantity_Monitoring(int Target) {
+
+    MotorGuard guard(outfeed_motor); 
+    outfeed_motor.move_voltage(MOTORVOLTAGE_IDLE); 
+
+    enum State_OUTFeed {Single, Flow};
+    enum State_OUTFeed_Block {Waiting, Starting, Locking, Shooting};
+
+    auto ema = [](double previous, double current){
+        return alpha_ema*current + (1-alpha_ema)*previous;
+    };
+
+    State_OUTFeed       Current_State       = Single;
+    State_OUTFeed_Block Current_Block_State = Waiting;
+    Feed_Result res{};
+
+    int t0 = pros::millis();
+    int last_activity = t0;
+
+    int time_enter_first = 0; //Used to prevent double bounce
+    int time_exit_first  = 0;
+    int time_hold_start  = 0;  //Record the time when the robot starts to shoot.
+    int time_last_clear  = 0;  //The timestamp of the last "sensor confirmed clearing"
+    int time_last_shoot  = 0;  //The timestamp of the last "successful count"
+
+    double dist = outfeed_distance_sensor.get();
+
+    while (pros::millis() - t0 < TMAX_outfeed) {
+
+        const int time_now = pros::millis();
+        const double dist_raw = outfeed_distance_sensor.get();
+        dist = ema(dist,dist_raw);
+
+        const bool blocked = (dist < Tenter_outfeed);
+        const bool clear   = (dist > Texit_outfeed);
+
+        const bool has_activity = (Current_Block_State != Waiting) || blocked;
+        if (has_activity) last_activity = time_now;
+        if (time_now - last_activity >= TIDLE_ABORT_MS_OUTFEED){
+            res.IDLE_TIMEOUT = true;   
+            break;
+        }
+
+        if (Current_State == Single) {
+            switch (Current_Block_State) {
+                case Waiting: {
+                    outfeed_motor.move_voltage(MOTORVOLTAGE_IDLE);//*
+                    if (blocked){
+                        if(!time_enter_first) time_enter_first = time_now;
+                        if(time_now - time_enter_first >= Tbounce_enter_outfeed){
+                            Current_Block_State = Starting;
+                            time_hold_start = time_now;          // Start timer
+                            time_enter_first = 0;
+                        }
+                    }else{
+                        time_enter_first = 0;
+                    }
+                } break;
+
+                case Starting: {
+                    outfeed_motor.move_voltage(MOTORVOLTAGE_IDLE);
+
+                    const uint32_t held_time = time_now - time_hold_start;      
+                    if (held_time >= (uint32_t)Tmin_outfeed){
+                        Current_Block_State = Locking;
+                        time_exit_first = 0;
+                    }
+                    if(clear){
+                        if(!time_exit_first) time_exit_first = time_now;
+                        if(time_now - time_exit_first >= Tbounce_exit_outfeed){
+                            Current_Block_State = Waiting;
+                            time_exit_first = 0;
+                            time_hold_start = 0;
+                        }
+                    }else{
+                        time_exit_first = 0;
+                        if(held_time >= Tmax_outfeed){
+                            res.JAM=true;
+                            break;
+                        }
+                    }
+                } break;
+                case Locking: {
+
+                    outfeed_motor.move_voltage(MOTORVOLTAGE_PULL);
+                    if (clear){
+                        if (!time_exit_first) time_exit_first = time_now;
+                        if (time_now - time_exit_first >= Tbounce_exit_outfeed){
+                            //Determine first, then update value
+                            const bool rapid = (time_last_shoot != 0) && ((time_now - time_last_shoot < gap_off_enter)); 
+
+                            res.count++;
+                            time_last_shoot = time_now;
+                            time_last_clear = time_now;
+                            Current_Block_State = Shooting;
+                            time_exit_first = 0;
+
+                            if(rapid){
+                                Current_State = Flow;
+                                Current_Block_State = Waiting;
+                            }
+                        }
+                    } else {
+                        time_exit_first = 0;
+                        if (time_now - time_hold_start >= Tmax_outfeed){
+                            res.JAM = true;
+                            break;
+                        }
+                    }
+
+                } break;
+                case Shooting: {
+                    outfeed_motor.move_voltage(MOTORVOLTAGE_PULL);
+                    if (clear && (time_now - time_last_shoot >= Tcool_min_outfeed)){
+                        Current_Block_State = Waiting;
+                    }
+                    if (clear) time_last_clear = time_now;
+                } break;
+            }
+        } else { // if Current_State == Flow
+            outfeed_motor.move_voltage(MOTORVOLTAGE_PULL);
+            if (clear){
+                if (!time_exit_first) time_exit_first = time_now;
+                if (time_now - time_exit_first >= Tbounce_exit_outfeed){
+                    res.count++;
+                    time_last_shoot = time_now;
+                    time_last_clear = time_now;
+                    time_exit_first = 0;
+                }
+            } else {
+                time_exit_first = 0;
+            }
+            // Flow exit: "Clear" takes too long (no next block) or the overall pause takes too long.
+            const bool no_next_block = clear && (time_now - time_last_clear >= gap_off_exit);
+            if (no_next_block){
+                Current_State = Single;
+                Current_Block_State = Waiting;
+            }
+        }
+        // Finish the task
+        if (res.count >= Target && dist > Texit_outfeed && (time_last_shoot == 0 || time_now - time_last_shoot >= t_off)) {
+            break;
+        }
+        // Update the previous rotation.
+        pros::delay(20);
+    }
+    return res;
+}
+/*
+------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------Auxiliary Modules----------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
 
 /*
 ------------------------------------------------------------------------------------------------------------------------------
@@ -212,7 +629,69 @@ inline double Speed_to_lem(double speed){ // the function that map the speed fro
     double percentage = std::clamp(speed,0.0,1.0); 
     return (float)(percentage * 127.0);
 }
+/*
+void GoTo_with_Auxiliary(double TargetX,double TargetY,int total_ms = 2500, double speed = 0.85){
+    const int Change_Gap         = 60;     // Smallest change in time, Unit: ms
+    const int Movement_Min_Time  = 220;    // Unit: ms
+    const float Min_Speed_Change = 8.0f;   // Minimum speed change threshold (no update when the speed change is less than this value)
+    const float Min_Speed_Gap    = 14.0f;  // Min speed, unit: voltage
+    const float Finish_Line      = 0.80f;  // Finish Line for movment, Unit: inches
+    const float Exit_Range       = 0.75f;
+    
+    float last_speed          = -1.0f;
+    uint32_t last_update_time = 0;
+    uint32_t time_now         = pros::millis();
 
+    while(pros::millis() - time_now < (uint32_t)total_ms){
+
+        auto pose = chassis.getPose();
+        auto TargetRaw = fieldToOdom(TargetX, TargetY, 0);
+
+        // ① 先算“原始向量”
+        double dx = TargetRaw.x - pose.x;
+        double dy = TargetRaw.y - pose.y;
+
+        // ② 逆时针旋转 90°： (dx',dy') = (-dy, dx)
+        double dx_corr = -dy;
+        double dy_corr =  dx;
+
+        // ③ 得到“修正过”的目标点（在 odom 坐标系里）
+        lemlib::Pose TargetCorr(
+            pose.x + dx_corr,
+            pose.y + dy_corr,
+            0 // 这里角度无所谓，moveToPoint自己会算
+        );
+
+        
+        auto Target = fieldToOdom(TargetX, TargetY, 0);
+
+        float dist = std::hypot(TargetCorr.x - pose.x , TargetCorr.y - pose.y);
+        if(dist <= Finish_Line) break; //Very close to the target, this task ends.
+
+        //Calculate the speed (in 0~127)
+        float speed_in_M1 = M1_Distance_Speed_Maping(TargetCorr.x,TargetCorr.y);
+        float speed_in_lem = Speed_to_lem(speed_in_M1);
+
+        uint32_t time_now = pros::millis();
+        bool time_check = (time_now - last_update_time) >= (uint32_t)Change_Gap; // time check
+        bool speed_check = (last_speed < 0 || std::fabs(speed_in_lem - last_speed) >= Min_Speed_Change); // speed check
+        if(time_check && speed_check){
+            float min_Speed = std::min(speed_in_lem,Min_Speed_Gap);
+            chassis.moveToPoint(
+                TargetCorr.x,TargetCorr.y,total_ms,
+                {.maxSpeed = speed_in_lem, .minSpeed=min_Speed, .earlyExitRange=Exit_Range}
+            );
+            last_speed       = speed_in_lem;
+            last_update_time = time_now;
+        }
+        pros::lcd::print(1,"Target:%.2f,%.2f",Target.x,Target.y);
+        pros::lcd::print(2,"Current Location: %.2f, %.2f",pose.x,pose.y);
+        pros::lcd::print(3,"DIst: %.2f",dist);
+        pros::delay(15);
+    }
+    
+}
+*/
 void Goto_with_Auxiliary_NODE(double TargetX, double TargetY,int total_ms = 2500, double speed = 0.85, double speed_minrate = 0.4,FaceMode faceMode = FaceMode::NONE){
     const float Exit_Range = 0.75f;   // 距离小于这个就认为到了
 
@@ -291,6 +770,172 @@ void Face_Point_Direction(double TargetX,double TargetY){
 }
 
 
+/*
+Use Example:
+
+void autonomous(){
+    Face_Target_Direction(24,8);    
+    GoTo_with_Auxiliary(24,8)  
+    Face_Point_Direction(90)     
+}
+
+*/
+
+
+/*
+------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------Steering and forward module (can be used directly)------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
+
+/*
+------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------Multithreaded operation-----------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
+
+
+class TaskThread_Queue{
+    public: 
+        void push(const Command& cmd){ // Rewrite(add a lock)
+            lock.take(TIMEOUT_MAX); // Use lock to make sure other other threads will not misuse the task.
+            q.push(cmd);
+            lock.give();
+        }
+        std::optional<Command> try_pop(){ // optional: no result return nullopt
+            std::optional<Command> Out_put;
+            lock.take(TIMEOUT_MAX);
+            if(!q.empty()){Out_put = q.front(); q.pop();} // Prevent pop operations on empty queues
+            lock.give();
+            return Out_put;
+        }
+        bool empty(){ // Rewrite the original empty function(add a lock)
+            bool Is_Empty;
+            lock.take(TIMEOUT_MAX);
+            Is_Empty=q.empty();
+            lock.give();
+            return Is_Empty;
+        }
+
+    private: 
+        pros::Mutex lock;
+        std::queue<Command> q;
+};
+
+class Worker{ // Worker templates. Each worker's substrate is customized by overriding the pure virtual function Handle
+    public:
+        //explicit Avoids implicit conversion of types. Need to use the referrer & to call private queue
+        explicit Worker(TaskThread_Queue& queue): q(queue){} 
+        void start(){ //Begining function
+            if(task){
+                if(done.load()){
+                    task -> remove();
+                    delete task;
+                    task = nullptr;
+                }
+                else{ return; }
+            } // preventing start a task that has already started
+            running = true;
+            done = false;
+            //Start a new thread, this pointer to the loop, name it “worker”".
+            task = new pros::Task(trampoline, (void*)this, TASK_PRIORITY_DEFAULT+1, 4096, "worker"); 
+        }
+        void stop(){
+            running = false;
+            q.push(Command{CmdStop{}});
+        } 
+        //The shutdown function. running controls the while loop in the loop function
+        //and setting it to false naturally stops the task from running.
+        bool finished() const{return done.load();} //Type transition, converting atomic<bool> to a regular bool.
+
+        ~Worker(){ //Destructor: Automatically performs aftercare when the worker is destroyed.
+            running = false; //double check that the loop is closed
+            while(!done.load()) pros::delay(5);
+            if(task){
+                task -> remove();
+                delete task;
+                task = nullptr;
+            }
+        }
+    protected:
+        //A core part of each worker.
+        //Pure virtual functions ensure that derived classes must override the function,
+        //implanting each thread's functionality by overriding the handle function
+        virtual void handle(const Command& cmd) = 0; 
+        TaskThread_Queue& q; 
+        std::atomic<bool> running{false}, done{false}; 
+
+    private:
+        static void trampoline(void* p){ static_cast<Worker*>(p)->loop();}
+        /*  
+            Since pros::Task needs void(*)(void *) so that there is no return, the argument list is only a generic pointer void*, and the whole is a function pointer type. 
+            We need this implicit function as a transitive interface
+            Essentially use this as a jumping off point to bind the loop function in the Worker to the generic pointer p. 
+            to satisfy the this keyword in Task, linking the loop function to the thread.
+            
+            使用worker*是因为loop函数是private的，需要应用才能调用否则会为空。
+            该指针函数为隐式函数是因为如果是显式函数，则该函数的类型会变成void(Worker::*)(void *)不满足Task需要的类型。
+        */
+
+        void loop(){ //The core working kernel of Worker. Use private for security
+            while(running){ 
+                //auto automatically recognizes the type, which in this case is optional. i.e., it may return Command, or it may be null.
+                if(auto c = q.try_pop()){ 
+                    if(std::holds_alternative<CmdStop>(*c)){running = false; break;} //If the returned command is stop, the task is terminated.
+                    handle(*c); //otherwise funcion normally
+                }else{
+                    pros::delay(10); //Take a break when there's an empty queue
+                }
+            }
+            done = true; //Mark done when finished
+        }
+        pros::Task* task{nullptr}; 
+};
+
+std::atomic<bool> g_drive_busy{false};
+class DriveWorker : public Worker{
+    public:
+        using Worker::Worker;
+    protected:
+        void handle(const Command& cmd) override{ //Rewrite the handle function to design the specific function for this worker.
+            if(const auto* t0 = std::get_if<CmdFaceTargetDirection>(&cmd)){  
+                g_drive_busy.store(true);
+                Face_Target_Direction(t0 -> TargetDeg);
+                g_drive_busy.store(false);
+            }else if(const auto* t1 = std::get_if<CmdFacePointDirection>(&cmd)){
+                g_drive_busy.store(true);
+                Face_Point_Direction(t1 -> TargetX, t1 -> TargetY);
+                g_drive_busy.store(false);
+            }else if(const auto* t2 = std::get_if<CmdGoto>(&cmd)){
+                g_drive_busy.store(true);
+                //GoTo_with_Auxiliary(t2 -> TargetX, t2 -> TargetY, t2 -> ms);
+                g_drive_busy.store(false);
+            }else{pros::lcd::print(6, "[Drive] Unknown command");}
+        }
+};
+class IOWorker : public Worker{
+    public:
+        using Worker::Worker;
+    protected:
+        void handle(const Command& cmd) override{
+            if(const auto* t0 = std::get_if<CmdIntake>(&cmd)){
+                M5_Feed_Quantity_Monitoring(t0 -> Target_Number);
+            }else if(const auto* t1 = std::get_if<CmdOutfeed>(&cmd)){
+                M6_OUTFeed_Quantity_Monitoring(t1 -> Target_Number);
+            }else if(const auto* t2 = std::get_if<CmdWaitDriveIdle>(&cmd)){
+                const int start = pros::millis();
+                while((g_drive_busy.load())&&(pros::millis()-start < t2 -> timeout_ms)){
+                    pros::delay(10); //wait until the Driveworker done or timeout.
+                }
+            }else{pros::lcd::print(6, "[IO] Unknown command");}
+        }
+};
+
+/*
+------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------Multithreaded operation----------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+*/
 
 
 /**
@@ -330,6 +975,22 @@ ASSET(example_txt); // '.' replaced with "_" to make c++ happy
 // three functions to find the coordinate, angle in the struct.
 
 
+    /*
+    if(auto c = find_coord("UnderGoal_right_red_block_right")){
+       auto p = transform_for_alliance(*c, g_isBlue);
+        qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        qIO.push(CmdIntake{2});
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+    }else{pros::lcd::print(1,"Can not find Coordinate of UnderGoal_right_red_block_right!");}
+
+    if(auto c = find_coord("Center_right_red_block_right")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+    }else{pros::lcd::print(1,"Can not find Coordinate of Center_right_red_block_right");}
+    */
+   
+
 // extremely easy module, used for emergency autonomous script
 void drive_arcade_ms(int forward, int turn, int ms) {
     chassis.arcade(forward, turn, true); // linear
@@ -343,10 +1004,12 @@ void Turn_Relative(double deltaDeg) {
     Face_Target_Direction(targetHeading);
 }
 
-void pid_test(){
-    drive_arcade_ms(127, 0, 100);
-    pros::delay(500);
-}
+
+TaskThread_Queue qDrive;
+TaskThread_Queue qIO;
+
+static DriveWorker drive(qDrive);
+static IOWorker    io(qIO);
 
 void Emergency() {
     
@@ -653,7 +1316,82 @@ void Experimental_WithGOING() {
     chassis.arcade(0, 0, true);
 
 }
+void Experimental() {
 
+    drive.start();
+    io.start();
+    
+    if(auto c = find_coord("Right_LongGoal_red_end")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        //qIO.push(CmdIntake{3});
+        //qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+    }else{pros::lcd::print(1,"Can not find Coordinate of Right_LongGoal_red_end!");}
+    
+
+    //<1>
+    if(auto c = find_coord("Center_right_red_block_right")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        //qIO.push(CmdIntake{3});
+        
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+        runIntakeForMs(600);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Center_right_red_block_right!");}
+    
+    //<2>
+    if(auto c = find_coord("LowerGoal_red_end")){
+        auto p = transform_for_CenterGoal(*c, g_isBlue);
+       //qDrive.push(CmdFaceTargetDirection{(double)p.theta_ro});
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+        //qIO.push(CmdWaitDriveIdle{3000});
+        //qIO.push(CmdOutfeed{1});
+        
+        runOutfeedForMs(300);
+    }else{pros::lcd::print(1,"Can not find Coordinate of LowerGoal_red_end");}
+
+    //<3>
+    if(auto c = find_coord("Left_bottom_SpecPoint")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+    }else{pros::lcd::print(1,"Can not find Coordinate of Left_bottom_SpecPoint");}
+    
+    valveB.set_value(true);
+    //<4>
+    if(auto c = find_coord("Right_LongGoal_red_end")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+        //qIO.push(CmdWaitDriveIdle{2000});
+        //qIO.push(CmdOutfeed{2});
+        
+        runOutfeedForMs(1000);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Right_LongGoal_red_end");}
+
+    //<5>
+    if(auto c = find_coord("Red_right_loader")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        //qIO.push(CmdIntake{3});
+        
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+        runIntakeForMs(750);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Red_right_loader");}
+
+    //<6>
+    valveA.set_value(true);
+    if(auto c = find_coord("Right_LongGoal_red_end")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //qDrive.push(CmdFacePointDirection{(double)p.x_co, (double)p.y_co});
+        qDrive.push(CmdGoto((double)p.x_co, (double)p.y_co,2500));
+        //qIO.push(CmdWaitDriveIdle{3000});
+        //qIO.push(CmdOutfeed{3});
+        
+        runOutfeedForMs(1000);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Right_LongGoal_red_end");}
+    
+}
 void Experimental_WithGOING2() {
     // <1> 三连块
     intake_motor.move_voltage(-12000);
@@ -835,8 +1573,28 @@ void OutFeed_block(std::string Command = "Start", float rate = 1.0f){
         pros::delay(100);
     }
 }
-
+void PID_test(){
+    
+    Face_Target_Direction(fieldAngleToOdom(180));
+    pros::delay(450);
+}
+void Moving_test(){
+    drive_arcade_ms(-127,0,100);
+    pros::delay(800);
+    Face_Target_Direction(fieldAngleToOdom(90));
+    drive_arcade_ms(-127,0,100);
+    pros::delay(800);
+    Face_Target_Direction(fieldAngleToOdom(180));
+    drive_arcade_ms(-127,0,100);
+    pros::delay(800);
+    Face_Target_Direction(fieldAngleToOdom(270));
+    drive_arcade_ms(-127,0,100);
+    pros::delay(800);
+    Face_Target_Direction(fieldAngleToOdom(0));
+}
 void SKILL(){
+    
+
     
     //Right half
     if(auto p = find_coord("Left_bottom_SpecPoint")){
@@ -1004,7 +1762,7 @@ void autonomous() {
     
     pros::lcd::print(1, "auto chassis=%p", &chassis);
 
-    pid_test();
+    //PID_test();
     //SKILL();
     /*
     Plan B: Emergency using
@@ -1018,16 +1776,43 @@ void autonomous() {
     //Normal_Using();
     //Moving_test();
     
-    /*
     
     if(Isright){
         Experimental_WithGOING();
     } else{
         Experimental_WithGOING2();
     }
-        */
+        
     
 }   
+// + 
+/*
+void autonomous() {
+    // 启动两个工人线程
+    drive.start();
+    io.start();
+
+    // === 示例脚本：先转→边走边吸 ===
+    qDrive.push(CmdTurnTo{90});                // 底盘转到 90°
+    qIO.push(CmdIntake{3});                    // 启动进料：目标 3 块（与行驶并行）
+    qDrive.push(CmdGoTo{24, 8, 2500});         // 前往 (24,8)，总时长 2.5s
+    qDrive.push(CmdTurnTo{0});                 // 到位后再转正
+
+    // …继续分发更多命
+    // qIO.push(CmdOutfeed{2});
+    // qDrive.push(CmdGoTo{30,24,1800});
+
+    // === 收尾：告诉工人线程可以下班 ===
+    qDrive.push(CmdStop{});
+    qIO.push(CmdStop{});
+
+    // 等它们自然退出（简单等就行）
+    uint32_t t0 = pros::millis();
+    while ((!drive.finished() || !io.finished()) && pros::millis()-t0 < 2000) {
+        pros::delay(10);
+    }
+}
+*/
 /*
     R1: intake 但不吐出
     R2: intake吐出 
