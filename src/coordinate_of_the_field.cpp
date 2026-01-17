@@ -29,10 +29,12 @@ extern const Map_Coordinate FIELD_COORDINATE[]{
     {"UnderGoal_left_red_block_right",ComponentType::Block,68.61f,116.97f,NAN},
     {"UnderGoal_left_blue_block_left",ComponentType::Block,71.84f,116.97f,NAN},
     {"Left_bottom_SpecPoint",ComponentType::Landmark,39.44f,26.5f,0.0f}, //
-    {"Left_top_SpecPoint",ComponentType::Landmark,36.44f,114.97f,0.0f}, //108.0
-    {"Left_Descore_point",ComponentType::Landmark,49.00f,132.5f,0.0f},
+    {"Left_top_SpecPoint",ComponentType::Landmark,36.44f,113.97f,0.0f}, //108.0
+    {"Left_Descore_point",ComponentType::Landmark,49.00f,130.0f,0.0f},
+    {"Left_Descore_point2",ComponentType::Landmark,55.00f,131.0f,0.0f},
     {"Right_SidePoint_BlueSide",ComponentType::Landmark,0.0f,0.0f,0.0f},
     {"Left_SidePoint_RedSide",ComponentType::Landmark,0.0f,0.0f,0.0f},
+    
 };
 
 /*
