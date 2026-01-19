@@ -301,21 +301,7 @@ void disabled() {}
 /**
  * runs after initialize if the robot is connected to field control
  */
-void competition_initialize() {
 
-    /*
-    pros::lcd::initialize(); // initialize brain screen
-    pros::lcd::print(0, "init, chassis=%p", &chassis);
-
-    horizontalEnc.reset_position();
-    verticalEnc.reset_position();
-
-    chassis.calibrate(); // calibrate sensors   
-    pros::delay(100);
-    chassis.setPose(68.5,23,270);
-    SKILL();
-    */
-}
 
 // get a path used for pure pursuit
 // this needs to be put outside a function
@@ -664,7 +650,7 @@ void Experimental_WithGOING2() {
     outfeed_motor.move_voltage(-9000);
     drive_arcade_ms(127, 0, 250);
     pros::delay(100);
-
+    
     if(auto c = find_coord("Center_left_red_block_right")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
@@ -795,7 +781,7 @@ void Experimental_WithGOING2() {
         Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_LongGoal_red_end!");}
 
-    Face_Target_Direction(fieldAngleToOdom(0));
+    //Face_Target_Direction(fieldAngleToOdom(0));
     pros::delay(200);
 
      if(auto c = find_coord("Left_Descore_point2")){
@@ -1041,6 +1027,37 @@ void autonomous() {
     X: match loader pneumatics
     Y：pneumatics 换高度
  */
+
+
+ void competition_initialize() {
+
+    /*
+    horizontalEnc.reset_position();
+    verticalEnc.reset_position();
+
+    chassis.calibrate(); // calibrate sensors   
+    pros::delay(100);
+
+    if(Isright){
+        if (!g_isBlue) {
+            chassis.setPose(Xf_red, Yf_red, 90);
+        } else {
+            chassis.setPose(Xf_blue, Yf_blue, -90);
+        }
+    }
+    else{
+        if(!g_isBlue){
+            chassis.setPose(Xf_red,Yf_blue,90);
+        }
+        else{
+            chassis.setPose(Xf_blue,Yf_red,-90);
+        }
+    }
+
+    Experimental_WithGOING2();
+    */
+}
+
 void opcontrol() {
     // controller
     bool OutFeedHeight          = false;
