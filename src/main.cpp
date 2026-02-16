@@ -6,8 +6,8 @@ pros::Controller controller(pros::E_CONTROLLER_MASTER);
 pros::MotorGroup leftMotors({-3, -6, -10}, pros::MotorGearset::blue); // left motor group - ports -3，-2，-6
 pros::MotorGroup rightMotors({14, 15, 16}, pros::MotorGearset::blue); // right motor group - ports 14,15,16
 pros::Motor intake_motor(19,pros::MotorGearset::blue); //intake motor
-pros::Motor outfeed_motor(8,pros::MotorGearset::blue); //outfeed motor
-pros::Distance intake_distance_sensor(9); //distance sensor
+pros::Motor outfeed_motor(2,pros::MotorGearset::blue); //outfeed motor
+//pros::Distance intake_distance_sensor(9); //distance sensor
 pros::Distance outfeed_distance_sensor(1);
 pros::adi::DigitalOut valveA('A');
 pros::adi::DigitalOut valveB('B');
@@ -98,9 +98,9 @@ lemlib::ExpoDriveCurve steerCurve(3, // joystick deadband out of 127
 lemlib::Chassis chassis(drivetrain, linearController, angularController, sensors, &throttleCurve, &steerCurve);
 
 
-const bool g_isBlue = true;
-const bool Isright  = true;
-bool is_match = true;
+const bool g_isBlue = false;
+const bool Isright  = false;
+const bool is_match = false;
 
 // 场地坐标（你测量的）
 const double Xf_red  = 8.25;
@@ -119,6 +119,8 @@ const double Thf_red_right = 90.0;
 const double Xf_blue_right = 114.93;
 const double Thf_blue_right = 270.0;
 
+
+
 void initialize() {
     pros::lcd::initialize(); // initialize brain screen
     pros::lcd::print(0, "init, chassis=%p", &chassis);
@@ -135,7 +137,7 @@ void initialize() {
             else chassis.setPose(Xf_blue_right, Yf_red_right, 90 + Thf_blue_right); //right + blue
         }else{
             if(!g_isBlue)chassis.setPose(Xf_red,Yf_blue,90); //left + red
-            else chassis.setPose(Xf_blue,Yf_blue,-90); //left + blue      
+            else chassis.setPose(Xf_blue,Yf_red,-90); //left + blue      
         }
     } else {
         chassis.setPose(25.75,74.0,270+90);
@@ -256,7 +258,7 @@ void Face_Point_Direction(double TargetX,double TargetY){
     // 5. 交给前面简化后的 Face_Target_Direction 来执行转向
     Face_Target_Direction(targetHeading);
 
-    pros::delay(20);
+    //pros::delay(20);
 }
 /**
  * Runs while the robot is disabled
@@ -363,20 +365,42 @@ void Normal_RightRoutine() {
 
     //outfeed_motor.move_voltage(-5000);
 
-    if(auto c = find_coord("Red_right_loader")){
+    
+    if(auto c = find_coord("Left_bottom_SpecPoint")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        //Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.4,0.6);
-        //chassis.moveToPose(p.x_co,p.y_co,180,1000);
-    }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");} 
-
-
-    if(auto c = find_coord("Red_right_loader")){
-        auto p = transform_for_alliance(*c, g_isBlue);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        //Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.4,0.6);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.6);
         //chassis.moveToPose(p.x_co,p.y_co,180,1000);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}    
+
+    if(auto c = find_coord("Red_right_loader")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        Face_Point_Direction(p.x_co,p.y_co);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.6);
+        //chassis.moveToPose(p.x_co,p.y_co,180,2000);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}     
+
+    if(auto c = find_coord("Right_LongGoal_red_end")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+         //Face_Point_Direction(p.x_co,p.y_co);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.6,FaceMode::BACK_TO_TARGET);
+        //chassis.moveToPose(p.x_co,p.y_co,180,1000);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
+
+    if(auto c = find_coord("Left_bottom_SpecPoint")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //Face_Point_Direction(p.x_co,p.y_co);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.6);
+        //chassis.moveToPose(p.x_co,p.y_co,180,1000);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}   
+
+    if(auto c = find_coord("Center_right_red_block_right")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //Face_Point_Direction(p.x_co,p.y_co);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.6);
+        //chassis.moveToPose(p.x_co,p.y_co,180,1000);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
+
     //outfeed_motor.move_voltage(0);  
 
 
@@ -506,7 +530,7 @@ void Normal_LeftRoutine() {
     // <1> 三连块
 
     intake_motor.move_voltage(-12000);
-    outfeed_motor.move_voltage(-9000);
+    outfeed_motor.move_voltage(12000);
 
     drive_arcade_ms(127, 0, 250);
     pros::delay(100);
@@ -514,44 +538,44 @@ void Normal_LeftRoutine() {
     if(auto c = find_coord("Center_left_red_block_right")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.4,0.6);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.4,0.7);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}    
 
     // 小突进
     valveA.set_value(true);
+    //pros::delay(50);
+    //drive_arcade_ms(127, 0, 100);
     pros::delay(50);
-    drive_arcade_ms(127, 0, 100);
-    pros::delay(50);
-    drive_arcade_ms(-127, 0, 180);
+    //drive_arcade_ms(-127, 0, 180);
 
     intake_motor.move_voltage(0);
 
     // <2> 左中转点
 
     valveB.set_value(true);
-    outfeed_motor.move_voltage(-5000);
-    pros::delay(100);
+    outfeed_motor.move_voltage(10000);
+    //pros::delay(100);
 
     if(auto c = find_coord("Left_top_SpecPoint")){
         auto p = transform_for_alliance(*c, g_isBlue);
         Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1700,0.7,0.55);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1300,0.7,0.55);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_top_SpecPoint!");}
     
     // <3> 左loader
     valveA.set_value(true);
     valveB.set_value(true);
     intake_motor.move_voltage(-11000);
-    outfeed_motor.move_voltage(-8000);
-    pros::delay(100);
+    outfeed_motor.move_voltage(8000);
+    //pros::delay(100);
 
     if(auto c = find_coord("Red_left_loader")){
         auto p = transform_for_alliance(*c, g_isBlue);
         Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2000,0.4,0.25);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1450,0.55,0.25);
     }else{pros::lcd::print(1,"Can not find Coordinate of Red_left_loader!");}
 
-    pros::delay(400);
+    //pros::delay(100);
     intake_motor.move_voltage(0);
     outfeed_motor.move_voltage(0);
 
@@ -559,13 +583,13 @@ void Normal_LeftRoutine() {
     if(auto c = find_coord("Left_LongGoal_red_end")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1700,0.6,0.5,FaceMode::BACK_TO_TARGET);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1350,0.9,0.5,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_LongGoal_red_end!");}
     
     valveA.set_value(true);
-    outfeed_motor.move_voltage(10500);
-    intake_motor.move_voltage(-10000);
-    pros::delay(2200);
+    outfeed_motor.move_voltage(-11500);
+    intake_motor.move_voltage(-11500);
+    pros::delay(1700);
     outfeed_motor.move_voltage(0);
     intake_motor.move_voltage(0);
     
@@ -576,14 +600,14 @@ void Normal_LeftRoutine() {
     
     if(auto c = find_coord("Left_Descore_point")){
         auto p = transform_for_alliance(*c, g_isBlue);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.45);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.7,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_LongGoal_red_end!");}
 
     pros::delay(200);
 
     if(auto c = find_coord("Left_Descore_point2")){
         auto p = transform_for_alliance(*c, g_isBlue);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.45);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.7,0.45);
     }else{pros::lcd::print(1,"Can not find Coordinate of Left_LongGoal_red_end!");}    
 }
 
@@ -591,6 +615,7 @@ void Normal_LeftRoutine() {
 Intake motor : negative -> intake ; positive -> go out from the bottom.
 Outfeed motor : negative -> go back ; positive -> go out.
 */
+
 void Intake_block(std::string Command = "Start",float rate = 1.0f){
     if(Command == "Start"){
         intake_motor.move_voltage(-12000 * rate);
@@ -631,11 +656,17 @@ void SKILL(){
         //chassis.moveToPose(p->x_co,p->y_co,-90,1000);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
+    intake_motor.move_voltage(-11000);
+    outfeed_motor.move_voltage(8000);
+
     if(auto c = find_coord("Red_left_loader")){ //为了防止剧烈撞击先用这个，后续再换成red_left_loader
         auto p = transform_for_alliance(*c, false);
         //Face_Point_Direction(p.x_co,p.y_co);
         Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.55);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
+
+    intake_motor.move_voltage(0);
+    outfeed_motor.move_voltage(0);
 
     if(auto c = find_coord("SKILL_mid_path_point")){
         auto p = transform_for_alliance(*c, false);
@@ -651,7 +682,7 @@ void SKILL(){
     if(auto c = find_coord("SKILL_mid_path_point2")){
         auto p = transform_for_alliance(*c, false);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,3500,0.65,0.55);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,3500,0.85,0.55);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     if(auto c = find_coord("Left_bottom_SpecPoint2")){ //blue
@@ -666,6 +697,12 @@ void SKILL(){
         //Face_Point_Direction(p.x_co,p.y_co);
         Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.55,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
+
+    intake_motor.move_voltage(-11000);
+    outfeed_motor.move_voltage(-11000);
+    pros::delay(1700);
+
+    outfeed_motor.move_voltage(8000);
     
     if(auto c = find_coord("Red_right_loader")){//blue
         auto p = transform_for_alliance(*c, true);
@@ -673,14 +710,99 @@ void SKILL(){
         Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.55);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
+    intake_motor.move_voltage(0);
+    outfeed_motor.move_voltage(0);
+
     if(auto c = find_coord("Right_LongGoal_red_end")){ //blue
         auto p = transform_for_alliance(*c, true);
         //Face_Point_Direction(p.x_co,p.y_co);
         Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.5,0.55,FaceMode::BACK_TO_TARGET);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
+    intake_motor.move_voltage(-11000);
+    outfeed_motor.move_voltage(-11000);
+    pros::delay(1700);
+    intake_motor.move_voltage(0);
+    outfeed_motor.move_voltage(0);
+
     valveB.set_value(false);
     valveA.set_value(false);
+}
+
+
+/*
+    R1: intake 但不吐出
+    R2: intake吐出 
+    L1: 反转下面吐出 
+    L2: 换方向 
+    X: match loader pneumatics
+    Y：pneumatics 换高度
+ */
+ void competition_initialize() {
+}
+void double_park(){
+    outfeed_motor.move_voltage(12000);
+    pros::delay(1000);
+    valveB.set_value(false);
+    valveA.set_value(false);
+    pros::delay(250);
+}
+
+pros::Distance bottomDist(9);          // 底部口距离传感器
+
+pros::ADIDigitalOut liftPistonL('G');  // 顶车气缸
+//pros::ADIDigitalOut armPiston('H');    // 抬臂/抬起odom的气缸
+
+enum class AutoFeedState { IDLE, SEEKING, CLAMPING };
+AutoFeedState state = AutoFeedState::IDLE;
+
+constexpr int DETECT_MM = 80;      // 你们自己实测阈值：块到口子大概多少mm算“到位”
+constexpr int MIN_CONF  = 40;      // 置信度阈值（建议实测调整）
+constexpr int SEEK_PWR  = 80;      // 慢速功率（0-127）
+constexpr int STOP_PWR  = 0;
+
+// Double Part
+void startAutoFeed() {
+    pros::lcd::print(2, "Mother");
+    intake_motor.move(SEEK_PWR);
+    outfeed_motor.move(SEEK_PWR);
+    state = AutoFeedState::SEEKING;
+}
+
+void stopAndClamp() {
+    intake_motor.brake();  // 或 conveyor.move(0);
+    outfeed_motor.brake();
+    // 同步动作：顶车 + 抬臂（抬起odom轮）
+    liftPistonL.set_value(true);
+    //liftPistonR.set_value(true);
+    valveH.set_value(true);
+    state = AutoFeedState::CLAMPING;
+}
+void autoFeedTask(void*) {
+    while (true) {
+        if (state == AutoFeedState::SEEKING) {
+            auto mm = bottomDist.get();
+            auto conf = bottomDist.get_confidence();
+
+            // 双条件：距离 + 置信度，能显著减少误触发
+            if (mm > 0 && mm <= DETECT_MM) {
+                pros::delay(35);
+                stopAndClamp();
+            }
+        }
+        pros::delay(10);
+    }
+}
+
+void PARK(){
+    //pros::Task t(autoFeedTask,nullptr);
+    //startAutoFeed();
+    intake_motor.move_voltage(-12000);
+    drive_arcade_ms(127,0,5000);
+    valveB.set_value(true);
+    drive_arcade_ms(-127,0,1500);
+    drive_arcade_ms(127,0,2000);
+    intake_motor.move_voltage(0);
 }
 
 void autonomous() {
@@ -701,27 +823,13 @@ void autonomous() {
         if(Isright) Normal_RightRoutine();
         else Normal_LeftRoutine();
     } else {
-        SKILL();
+        //SKILL();
+        PARK();
     }
 }   
-/*
-    R1: intake 但不吐出
-    R2: intake吐出 
-    L1: 反转下面吐出 
-    L2: 换方向 
-    X: match loader pneumatics
-    Y：pneumatics 换高度
- */
- void competition_initialize() {
-}
-void double_park(){
-    outfeed_motor.move_voltage(12000);
-    pros::delay(1000);
-    valveB.set_value(false);
-    valveA.set_value(false);
-    pros::delay(250);
-}
+
 void opcontrol() {
+    pros::Task t(autoFeedTask, nullptr);
     // controller
     bool OutFeedHeight          = false;
     bool MatchLoader            = false;
@@ -772,37 +880,62 @@ void opcontrol() {
             IOspeed = (SlowMode) ? 0.85 : 1.0;
         }
         
-        //if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_UP)){
-        //    double_park();
-        //}
+        if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_UP)){
+            startAutoFeed();
+        }
         
         if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_DOWN)){
             CorrdORANgle = !CorrdORANgle;
         }
         
+        if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_LEFT)){
+            // 复位：回到手动
+            state = AutoFeedState::IDLE;
+            liftPistonL.set_value(false);
+            valveH.set_value(false);
+            intake_motor.move_voltage(0);
+            outfeed_motor.move_voltage(0);
+        }
+
         
         auto p = chassis.getPose();
         if(CorrdORANgle){
-            controller.print(0, 0, "%.2f, %.2f",   p.x,p.y);
+            //controller.print(0, 0, "%.2f, %.2f",   p.x,p.y);
+            //controller.print(0,0,"%ld,%ld",bottomDist.get(),bottomDist.get_confidence());
+            std::int32_t mm = bottomDist.get();                 // 单位 mm  :contentReference[oaicite:0]{index=0}
+            std::int32_t conf = bottomDist.get_confidence();    // 0~63      :contentReference[oaicite:1]{index=1}
+            std::printf("mm=%ld conf=%ld errno=%d\n", (long)mm, (long)conf, errno);
+            
         }else{
-            controller.print(0, 0, "%.2f,%.2f", wrap_deg(p.theta), wrap_deg(p.theta - 90));
+            //controller.print(0, 0, "%.2f,%.2f", wrap_deg(p.theta), wrap_deg(p.theta - 90));
+            //controller.print(0,0,"%.2f,%.2f",bottomDist.get(),bottomDist.get_confidence());
+            std::int32_t mm = bottomDist.get();                 // 单位 mm  :contentReference[oaicite:0]{index=0}
+            std::int32_t conf = bottomDist.get_confidence();    // 0~63      :contentReference[oaicite:1]{index=1}
+            controller.print(0,0,"mm=%ld conf=%ld errno=%d\n", (long)mm, (long)conf, errno);
         }
 
         const int dir       = driveReversed       ? -1 : 1;
         const int dir_INOUT = InputOutputReversed ? -1 : 1;
         // R1 and R2
-        const bool R1=controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1);
-        const bool R2=controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2);
-        if (R1 && !R2) {
-            intake_motor.move_voltage(12000 * dir_INOUT * IOspeed);
-            outfeed_motor.move_voltage(9000 * dir_INOUT * IOspeed);
-        } else if (!R1 && R2) {
-            intake_motor.move_voltage(12000 * dir_INOUT * IOspeed);
-            outfeed_motor.move_voltage(-11500 * dir_INOUT * IOspeed);
-        } else {
-            intake_motor.move_voltage(0);
-            outfeed_motor.move_voltage(0);
+        const bool R2=controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1);
+        const bool R1=controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2);
+        // 只有在IDLE才允许手动控制 intake/outfeed，避免覆盖自动进料
+        if (state == AutoFeedState::IDLE) {
+            const bool R2=controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1);
+            const bool R1=controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2);
+
+            if (R1 && !R2) {
+                intake_motor.move_voltage(12000 * dir_INOUT * IOspeed);
+                outfeed_motor.move_voltage(9000  * dir_INOUT * IOspeed);
+            } else if (!R1 && R2) {
+                intake_motor.move_voltage(12000 * dir_INOUT * IOspeed);
+                outfeed_motor.move_voltage(-11500 * dir_INOUT * IOspeed);
+            } else {
+                intake_motor.move_voltage(0);
+                outfeed_motor.move_voltage(0);
+            }
         }
+
         int forward = deadzone(controller.get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y));
         int turning = deadzone(controller.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_X));
         forward = std::clamp(forward * dir, -127, 127);

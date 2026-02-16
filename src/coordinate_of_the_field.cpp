@@ -3,7 +3,7 @@
 
 extern const Map_Coordinate FIELD_COORDINATE[]{
     {"Red_right_loader",ComponentType::Loader,2.58f,23.44f,0.0f},
-    {"Red_left_loader",ComponentType::Loader,2.58f,116.97f,0.0f},
+    {"Red_left_loader",ComponentType::Loader,4.58f,116.97f,0.0f},
     {"Side_right_blue_block_left",ComponentType::Block,21.46f,1.61f,NAN},
     {"Side_right_blue_block_right",ComponentType::Block,24.69f,1.61f,NAN},
     {"Side_left_blue_block_left",ComponentType::Block,21.46f,138.80f,NAN},
@@ -15,7 +15,7 @@ extern const Map_Coordinate FIELD_COORDINATE[]{
     {"Center_left_red_block_right",ComponentType::Block,49.88f,93.78f,NAN},
     {"Center_left_red_block_bottom",ComponentType::Block,46.65f,90.53f,NAN},
     {"Right_LongGoal_red_end",ComponentType::Goal,45.83f,23.44f,180.0f}, //23.44
-    {"Left_LongGoal_red_end",ComponentType::Goal, 45.83f,116.97f,180.0f},
+    {"Left_LongGoal_red_end",ComponentType::Goal, 44.83f,116.97f,180.0f},
     {"LowerGoal_red_end",ComponentType::Goal,62.23f,62.22f,225.0f},
     {"UpperGoal_red_end",ComponentType::Goal,62.23f,78.19f,135.0f},
     {"Parking_blue_block_left1",ComponentType::Block,14.03f,75.05f,NAN},
@@ -28,13 +28,13 @@ extern const Map_Coordinate FIELD_COORDINATE[]{
     {"UnderGoal_left_red_block_left",ComponentType::Block,65.38f,116.97f,NAN},
     {"UnderGoal_left_red_block_right",ComponentType::Block,68.61f,116.97f,NAN},
     {"UnderGoal_left_blue_block_left",ComponentType::Block,71.84f,116.97f,NAN},
-    {"Left_bottom_SpecPoint",ComponentType::Landmark,39.44f,26.5f,0.0f}, 
+    {"Left_bottom_SpecPoint",ComponentType::Landmark,30.44f,25.5f,0.0f}, 
     {"Left_bottom_SpecPoint2",ComponentType::Landmark,20.45f,28.44f,0.0f}, 
     {"Left_top_SpecPoint2",ComponentType::Landmark,20.44f,116.97f,0.0f}, //108.0
-    {"Left_top_SpecPoint",ComponentType::Landmark,36.44f,113.97f,0.0f}, //108.0
+    {"Left_top_SpecPoint",ComponentType::Landmark,30.44f,115.0f,0.0f}, //108.0
     {"Left_Descore_point",ComponentType::Landmark,49.00f,130.0f,0.0f},
-    {"Left_Descore_point2",ComponentType::Landmark,55.00f,131.0f,0.0f},
-    {"Right_Descore_point",ComponentType::Landmark,91.43f,130.0f,0.0f},
+    {"Left_Descore_point2",ComponentType::Landmark,60.00f,127.0f,0.0f},
+    {"Right_Descore_point",ComponentType::Landmark,91.43f,128.0f,0.0f},
     {"Right_SidePoint_BlueSide",ComponentType::Landmark,0.0f,0.0f,0.0f},
     {"Left_SidePoint_RedSide",ComponentType::Landmark,0.0f,0.0f,0.0f},
 
