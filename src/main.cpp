@@ -8,7 +8,7 @@ pros::MotorGroup rightMotors({14, 15, 16}, pros::MotorGearset::blue); // right m
 pros::Motor intake_motor(19,pros::MotorGearset::blue); //intake motor
 pros::Motor outfeed_motor(2,pros::MotorGearset::blue); //outfeed motor
 //pros::Distance intake_distance_sensor(9); //distance sensor
-pros::Distance outfeed_distance_sensor(1);
+//pros::Distance outfeed_distance_sensor(1);
 pros::adi::DigitalOut valveA('A');
 pros::adi::DigitalOut valveB('B');
 pros::adi::DigitalOut valveH('H');
@@ -19,13 +19,13 @@ pros::Imu imu(7);
 // tracking wheels
 // horizontal tracking wheel encoder. Rotation sensor, port 20, not reversed
 
-pros::Rotation horizontalEnc(4);
+pros::Rotation horizontalEnc(1);
 
 // vertical tracking wheel encoder. Rotation sensor, port 11, reversed
 pros::Rotation verticalEnc(5);
 
 // horizontal tracking wheel. 1.8" diameter, 0.5" offset, back of the robot (negative)
-lemlib::TrackingWheel horizontal(&horizontalEnc, 2, 1);
+lemlib::TrackingWheel horizontal(&horizontalEnc, 2, 0.5);
 
 // vertical tracking wheel. 1.8" diameter, 1.5" offset, left of the robot (negative)
 lemlib::TrackingWheel vertical(&verticalEnc, 2, 1.25); 
@@ -36,8 +36,8 @@ lemlib::TrackingWheel vertical(&verticalEnc, 2, 1.25);
 // 1.9 , -1.5
 
 
-// 16.5*14
-// 8.25*7
+// 16*14
+// 8*7
 
 // drivetrain settings
 lemlib::Drivetrain drivetrain(&leftMotors, // left motor group
@@ -45,7 +45,7 @@ lemlib::Drivetrain drivetrain(&leftMotors, // left motor group
                               14, // 14 inch track width
                               3, // using new 3" omnis
                               450, // drivetrain rpm is 600(We use blue motor)
-                              8 // horizontal drift is 2. If we had traction wheels, it would have been 8
+                              2 // horizontal drift is 2. If we had traction wheels, it would have been 8
 );
 
 // lateral motion controller
@@ -99,7 +99,7 @@ lemlib::Chassis chassis(drivetrain, linearController, angularController, sensors
 
 
 const bool g_isBlue = false;
-const bool Isright  = false;
+const bool Isright  = true;
 const bool is_match = false;
 
 // 场地坐标（你测量的）
@@ -112,12 +112,13 @@ const double Yf_blue = 86.91;
 const double Thf_blue = 180.0;
 
 //right 
-const double Xf_red_right = 25.5;
-const double Yf_red_right = 74.0;
+const double Xf_red_right = 25; //25.5, 23
+const double Yf_red_right = 55.25; //74.0， 60.25
 const double Thf_red_right = 90.0;
 
 const double Xf_blue_right = 114.93;
 const double Thf_blue_right = 270.0;
+
 
 
 
@@ -211,7 +212,7 @@ void Goto_with_Auxiliary_NODE(double TargetX, double TargetY,int total_ms = 2500
     // 离目标太近就不动了，防止抖动
     if (dist <= Exit_Range) return;
 
-    controller.print(0,0,"x,y:%.2f,%.2f",pose.x,pose.y);
+   //controller.print(0,0,"x,y:%.2f,%.2f",pose.x,pose.y);
 
     bool isfoward = (faceMode == FaceMode::BACK_TO_TARGET) ? false : true;
 
@@ -235,6 +236,9 @@ void Goto_with_Auxiliary_NODE(double TargetX, double TargetY,int total_ms = 2500
     
     
     chassis.waitUntilDone();
+    
+    pose = chassis.getPose();
+    controller.print(0,0,"x,y:%.2f,%.2f",pose.x,pose.y);
 }
 
 void Face_Point_Direction(double TargetX,double TargetY){
@@ -366,40 +370,86 @@ void Normal_RightRoutine() {
     //outfeed_motor.move_voltage(-5000);
 
     
+    //Plan B 
+    //chassis.moveToPose(2.58,23.44,180 + 90,2500);
+
+    //chassis.moveToPose(45.83,23.44,180 + 90,2500);
+
+    //chassis.moveToPose(23.075,23.44,315 + 90, 2500);
+    
+    
     if(auto c = find_coord("Left_bottom_SpecPoint")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.6);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,5500,0.6,0.6);
         //chassis.moveToPose(p.x_co,p.y_co,180,1000);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}    
 
+    valveB.set_value(true);
+    valveA.set_value(true);
+    intake_motor.move_voltage(-11000);
+    outfeed_motor.move_voltage(8000);
+    
     if(auto c = find_coord("Red_right_loader")){
         auto p = transform_for_alliance(*c, g_isBlue);
-        Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.6);
+        //Face_Point_Direction(p.x_co,p.y_co);
+        Face_Target_Direction(180+90);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1600,0.6,0.6);
         //chassis.moveToPose(p.x_co,p.y_co,180,2000);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}     
+    
+    intake_motor.move_voltage(0);
+    outfeed_motor.move_voltage(0);
+    valveB.set_value(false);
 
     if(auto c = find_coord("Right_LongGoal_red_end")){
         auto p = transform_for_alliance(*c, g_isBlue);
          //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.6,FaceMode::BACK_TO_TARGET);
+        Face_Target_Direction(180+90);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1000,0.6,0.6,FaceMode::BACK_TO_TARGET);
         //chassis.moveToPose(p.x_co,p.y_co,180,1000);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
-    if(auto c = find_coord("Left_bottom_SpecPoint")){
+    intake_motor.move_voltage(-11000);
+    outfeed_motor.move_voltage(-11000);
+    pros::delay(1000);
+    intake_motor.move_voltage(0);
+    outfeed_motor.move_voltage(0);
+
+    if(auto c = find_coord("Left_bottom_SpecPoint2")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
         Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.6);
         //chassis.moveToPose(p.x_co,p.y_co,180,1000);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}   
 
-    if(auto c = find_coord("Center_right_red_block_right")){
+    intake_motor.move_voltage(-11000);
+    outfeed_motor.move_voltage(8000);
+
+    if(auto c = find_coord("Center_right_red_block_center")){
         auto p = transform_for_alliance(*c, g_isBlue);
         //Face_Point_Direction(p.x_co,p.y_co);
+        Face_Target_Direction(315+90);
         Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.6);
         //chassis.moveToPose(p.x_co,p.y_co,180,1000);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
+
+    intake_motor.move_voltage(0);
+    outfeed_motor.move_voltage(0);
+
+    if(auto c = find_coord("LowerGoal_red_end")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        //Face_Point_Direction(p.x_co,p.y_co);
+        Face_Target_Direction(315+90);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.6);
+        //chassis.moveToPose(p.x_co,p.y_co,180,1000);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
+
+    intake_motor.move_voltage(11000);
+    outfeed_motor.move_voltage(11000);
+    pros::delay(1000);
+    intake_motor.move_voltage(0);
+    outfeed_motor.move_voltage(0);
 
     //outfeed_motor.move_voltage(0);  
 
@@ -900,18 +950,18 @@ void opcontrol() {
         
         auto p = chassis.getPose();
         if(CorrdORANgle){
-            //controller.print(0, 0, "%.2f, %.2f",   p.x,p.y);
+            controller.print(0, 0, "%.2f, %.2f",   p.x,p.y);
             //controller.print(0,0,"%ld,%ld",bottomDist.get(),bottomDist.get_confidence());
-            std::int32_t mm = bottomDist.get();                 // 单位 mm  :contentReference[oaicite:0]{index=0}
-            std::int32_t conf = bottomDist.get_confidence();    // 0~63      :contentReference[oaicite:1]{index=1}
-            std::printf("mm=%ld conf=%ld errno=%d\n", (long)mm, (long)conf, errno);
+            //std::int32_t mm = bottomDist.get();                 // 单位 mm  :contentReference[oaicite:0]{index=0}
+            //std::int32_t conf = bottomDist.get_confidence();    // 0~63      :contentReference[oaicite:1]{index=1}
+            //std::printf("mm=%ld conf=%ld errno=%d\n", (long)mm, (long)conf, errno);
             
         }else{
-            //controller.print(0, 0, "%.2f,%.2f", wrap_deg(p.theta), wrap_deg(p.theta - 90));
+            controller.print(0, 0, "%.2f,%.2f", wrap_deg(p.theta), wrap_deg(p.theta - 90));
             //controller.print(0,0,"%.2f,%.2f",bottomDist.get(),bottomDist.get_confidence());
-            std::int32_t mm = bottomDist.get();                 // 单位 mm  :contentReference[oaicite:0]{index=0}
-            std::int32_t conf = bottomDist.get_confidence();    // 0~63      :contentReference[oaicite:1]{index=1}
-            controller.print(0,0,"mm=%ld conf=%ld errno=%d\n", (long)mm, (long)conf, errno);
+            //std::int32_t mm = bottomDist.get();                 // 单位 mm  :contentReference[oaicite:0]{index=0}
+            //std::int32_t conf = bottomDist.get_confidence();    // 0~63      :contentReference[oaicite:1]{index=1}
+            //controller.print(0,0,"mm=%ld conf=%ld errno=%d\n", (long)mm, (long)conf, errno);
         }
 
         const int dir       = driveReversed       ? -1 : 1;
