@@ -28,7 +28,7 @@ extern const Map_Coordinate FIELD_COORDINATE[]{
     {"UnderGoal_left_red_block_left",ComponentType::Block,65.38f,116.97f,NAN},
     {"UnderGoal_left_red_block_right",ComponentType::Block,68.61f,116.97f,NAN},
     {"UnderGoal_left_blue_block_left",ComponentType::Block,71.84f,116.97f,NAN},
-    {"Left_bottom_SpecPoint",ComponentType::Landmark,23.5f,29.55f,0.0f},  //28.85
+    {"Left_bottom_SpecPoint",ComponentType::Landmark,25.5f,28.55f,0.0f},  //28.85
     {"Left_bottom_SpecPoint2",ComponentType::Landmark,23.5f,25.44f,0.0f},
     {"Left_bottom_SpecPoint3",ComponentType::Landmark,23.075f,23.44f,0.0f}, 
     {"Left_top_SpecPoint2",ComponentType::Landmark,20.44f,116.97f,0.0f}, //108.0

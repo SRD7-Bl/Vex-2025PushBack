@@ -113,8 +113,8 @@ const double Thf_blue = 180.0;
 
 //right 
 const double Xf_red_right = 25; //25.5, 23
-const double Yf_red_right = 55.25; //74.0， 60.25
-const double Thf_red_right = 90.0;
+const double Yf_red_right = 54.5; //74.0， 60.25
+const double Thf_red_right = 0;
 
 const double Xf_blue_right = 114.93;
 const double Thf_blue_right = 270.0;
@@ -378,78 +378,50 @@ void Normal_RightRoutine() {
     //chassis.moveToPose(23.075,23.44,315 + 90, 2500);
     
     
-    if(auto c = find_coord("Left_bottom_SpecPoint")){
+    if(auto c = find_coord("Center_right_red_block_top")){
         auto p = transform_for_alliance(*c, g_isBlue);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,5500,0.6,0.6);
-        //chassis.moveToPose(p.x_co,p.y_co,180,1000);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1500,0.6,0.6);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}    
 
+    
     valveB.set_value(true);
-    valveA.set_value(true);
     intake_motor.move_voltage(-11000);
     outfeed_motor.move_voltage(8000);
+    drive_arcade_ms(127,0,150);
+    pros::delay(50);
+    drive_arcade_ms(-127,0,150);
     
+    if(auto c = find_coord("Left_bottom_SpecPoint")){
+        auto p = transform_for_alliance(*c, g_isBlue);
+        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1600,0.6,0.6);
+    }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}     
+
     if(auto c = find_coord("Red_right_loader")){
         auto p = transform_for_alliance(*c, g_isBlue);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        Face_Target_Direction(180+90);
+        //Face_Target_Direction(180+90);
         Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1600,0.6,0.6);
-        //chassis.moveToPose(p.x_co,p.y_co,180,2000);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}     
     
     intake_motor.move_voltage(0);
     outfeed_motor.move_voltage(0);
     valveB.set_value(false);
+    valveA.set_value(true);
 
     if(auto c = find_coord("Right_LongGoal_red_end")){
         auto p = transform_for_alliance(*c, g_isBlue);
          //Face_Point_Direction(p.x_co,p.y_co);
-        Face_Target_Direction(180+90);
+        //Face_Target_Direction(180+90);
         Goto_with_Auxiliary_NODE(p.x_co,p.y_co,1000,0.6,0.6,FaceMode::BACK_TO_TARGET);
         //chassis.moveToPose(p.x_co,p.y_co,180,1000);
     }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
 
     intake_motor.move_voltage(-11000);
     outfeed_motor.move_voltage(-11000);
-    pros::delay(1000);
+    pros::delay(2000);
     intake_motor.move_voltage(0);
     outfeed_motor.move_voltage(0);
 
-    if(auto c = find_coord("Left_bottom_SpecPoint2")){
-        auto p = transform_for_alliance(*c, g_isBlue);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.6);
-        //chassis.moveToPose(p.x_co,p.y_co,180,1000);
-    }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}   
-
-    intake_motor.move_voltage(-11000);
-    outfeed_motor.move_voltage(8000);
-
-    if(auto c = find_coord("Center_right_red_block_center")){
-        auto p = transform_for_alliance(*c, g_isBlue);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        Face_Target_Direction(315+90);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.6);
-        //chassis.moveToPose(p.x_co,p.y_co,180,1000);
-    }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
-
-    intake_motor.move_voltage(0);
-    outfeed_motor.move_voltage(0);
-
-    if(auto c = find_coord("LowerGoal_red_end")){
-        auto p = transform_for_alliance(*c, g_isBlue);
-        //Face_Point_Direction(p.x_co,p.y_co);
-        Face_Target_Direction(315+90);
-        Goto_with_Auxiliary_NODE(p.x_co,p.y_co,2500,0.6,0.6);
-        //chassis.moveToPose(p.x_co,p.y_co,180,1000);
-    }else{pros::lcd::print(1,"Can not find Coordinate of Center_left_red_block_bottom.");}
-
-    intake_motor.move_voltage(11000);
-    outfeed_motor.move_voltage(11000);
-    pros::delay(1000);
-    intake_motor.move_voltage(0);
-    outfeed_motor.move_voltage(0);
+    
 
     //outfeed_motor.move_voltage(0);  
 
