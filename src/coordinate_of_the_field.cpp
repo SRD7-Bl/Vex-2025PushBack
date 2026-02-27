@@ -2,7 +2,7 @@
 #include "field_map.hpp" 
 
 extern const Map_Coordinate FIELD_COORDINATE[]{
-    {"Red_right_loader",ComponentType::Loader,2.58f,23.44f,0.0f},
+    {"Red_right_loader",ComponentType::Loader,2.58f,23.44f,0.0f}, //23.44
     {"Red_left_loader",ComponentType::Loader,4.58f,116.97f,0.0f},
     {"Side_right_blue_block_left",ComponentType::Block,21.46f,1.61f,NAN},
     {"Side_right_blue_block_right",ComponentType::Block,24.69f,1.61f,NAN},
@@ -28,12 +28,13 @@ extern const Map_Coordinate FIELD_COORDINATE[]{
     {"UnderGoal_left_red_block_left",ComponentType::Block,65.38f,116.97f,NAN},
     {"UnderGoal_left_red_block_right",ComponentType::Block,68.61f,116.97f,NAN},
     {"UnderGoal_left_blue_block_left",ComponentType::Block,71.84f,116.97f,NAN},
-    {"Left_bottom_SpecPoint",ComponentType::Landmark,25.5f,28.55f,0.0f},  //28.85
+    {"Left_bottom_SpecPoint",ComponentType::Landmark,29.5f,22.0f,0.0f},  //28.85
     {"Left_bottom_SpecPoint2",ComponentType::Landmark,23.5f,25.44f,0.0f},
     {"Left_bottom_SpecPoint3",ComponentType::Landmark,23.075f,23.44f,0.0f}, 
+    {"Left_top_SpecPoint3",ComponentType::Landmark,23.075f,116.97f,0.0f}, //108.0
     {"Left_top_SpecPoint2",ComponentType::Landmark,20.44f,116.97f,0.0f}, //108.0
-    {"Left_top_SpecPoint",ComponentType::Landmark,30.44f,115.0f,0.0f}, //108.0
-    {"Left_Descore_point",ComponentType::Landmark,49.00f,130.0f,0.0f},
+    {"Left_top_SpecPoint",ComponentType::Landmark,30.44f,113.0f,0.0f}, //108.0
+    {"Left_Descore_point",ComponentType::Landmark,49.00f,128.5f,0.0f},
     {"Left_Descore_point2",ComponentType::Landmark,60.00f,127.0f,0.0f},
     {"Right_Descore_point",ComponentType::Landmark,91.43f,128.0f,0.0f},
     {"Right_SidePoint_BlueSide",ComponentType::Landmark,0.0f,0.0f,0.0f},
